@@ -1,0 +1,59 @@
+# This is a workflow to test and deploy our demo app.
+
+name: Deploy to staging.
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  LOCAL_MONGO: 1
+  PYTHONPATH: /home/runner/work/min-server/min-server/
+  OUR_NAME: "A minimal server setup for DMM"
+  # FRONTEND_BASE_URL: ""
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    # We REALLY don't want to switch envs by changing code!
+    runs-on: ubuntu-latest
+    environment: pa-deploy
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+          # cache: 'pip'
+
+      - name: Install MongoDB
+        uses: supercharge/mongodb-github-action@1.8.0
+
+      # Set up ssh so that GH Actions VMs can install the private Core repo
+      - name: webfactory/ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.BACKENDCORE_KEY }}
+
+      - name: Install necessary packages.
+        run:
+          make dev_env
+
+      - name: Run Python tests.
+        run: make all_tests
+
+      # Deploy to PythonAnywhere
+      # - name: Deploy to PythonAnywhere
+      #   run: ./deploy.sh
+      #   env:
+      #     PA_PWD: ${{ secrets.PA_PWD }}
