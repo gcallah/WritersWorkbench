@@ -1,3 +1,3 @@
-# Minimal Server setup
+# The Writer's Workbench
 
-You must update the values in deploy.sh when setting up deployment to PythonAnywhere
+Our intention here is to create a suite of tools for professional writers.
