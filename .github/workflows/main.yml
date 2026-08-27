@@ -14,7 +14,7 @@ on:
 
 env:
   LOCAL_MONGO: 1
-  PYTHONPATH: /home/runner/work/min-server/min-server/
+  PYTHONPATH: /home/runner/work/WritersWorkbench/WritersWorkbench
   OUR_NAME: "A minimal server setup for DMM"
   # FRONTEND_BASE_URL: ""
 

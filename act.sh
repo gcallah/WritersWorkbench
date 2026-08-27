@@ -1,2 +1,2 @@
 #/bin/bash
-source min-server-venv/bin/activate
+source WritersWorkbench-venv/bin/activate
