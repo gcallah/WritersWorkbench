@@ -154,11 +154,9 @@ class Endpoints(Resource):
 
         rules = list(rule for rule in app.url_map.iter_rules())
         rules = filter(lambda r: r.rule not in invalid_rules, rules)
-
         endpoints = dict()
         for rule in rules:
             endpoints[rule.rule] = self._rule_docs(rule)
-
         return {ENDPOINT_STR: endpoints}
 
     @staticmethod
@@ -170,11 +168,9 @@ class Endpoints(Resource):
         rule_class = app.view_functions[rule.endpoint].view_class
         methods = list(app.view_functions[rule.endpoint].methods)
         methods = map(lambda x: x.lower(), methods)
-
         method_dict = {}
         for m in methods:
             rule_func = getattr(rule_class, m)
             doc = rule_func.__doc__.strip() if rule_func.__doc__ else None
             method_dict[m] = doc
-
         return method_dict
