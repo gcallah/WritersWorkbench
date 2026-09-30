@@ -1,0 +1,51 @@
+# Adapted from gcallah/min-demo's sample workflow.
+name: WritersWorkbench CI
+
+on:
+  push:
+    branches: [umer-dev-setup]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LOCAL_MONGO: "1"
+  PYTHONPATH: ${{ github.workspace }}
+  OUR_NAME: "A minimal server setup for DMM"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Display Python version
+        run: python --version
+
+      - name: Install development packages
+        run: make dev_env
+
+      - name: Run Python tests
+        run: make all_tests
