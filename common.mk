@@ -1,6 +1,7 @@
 # common make vars and targets:
 export PROJ_DIR = $(shell pwd)
 export SERVER_DIR = $(PROJ_DIR)/server
+export PROJECTS_DIR = $(PROJ_DIR)/projects
 
 export PANDOC = pandoc
 export PYLINT = flake8

@@ -28,6 +28,7 @@ dev_container: Dockerfile  $(REQ_DIR)/requirements-dev.txt
 
 all_tests: FORCE
 	cd $(SERVER_DIR); make tests
+	cd $(PROJECTS_DIR); make tests
 
 tests: FORCE
 	echo "Run make all_tests from top level dir."
