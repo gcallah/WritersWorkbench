@@ -2,3 +2,5 @@ PA_PWD: this is the Python Anywhere password
 FRONTEND_BASE_URL: URL for the frontend
 OUR_NAME: MIN_SERVER
 PYTHONPATH: add the home directory to the Python path
+DATABASE: sqlite
+SQLITE_LOC: directory for the SQLite database file (default ./database)

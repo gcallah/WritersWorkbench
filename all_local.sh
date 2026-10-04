@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script runs the API server against a local instance of MongoDB.
-LOCAL_MONGO=1
+# This script runs the API server. It is kept for old habits:
+# the server now always uses a local SQLite database, as local.sh does.
 
-./local.sh $LOCAL_MONGO
+./local.sh

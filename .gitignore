@@ -175,3 +175,6 @@ cython_debug/
 .superset/port
 .superset/server.pid
 .superset/constraints.txt
+
+# SQLite databases
+database/

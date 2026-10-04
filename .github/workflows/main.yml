@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 env:
-  LOCAL_MONGO: 1
+  DATABASE: sqlite
   PYTHONPATH: /home/runner/work/WritersWorkbench/WritersWorkbench
   OUR_NAME: "A minimal server setup for DMM"
   # FRONTEND_BASE_URL: ""
@@ -35,9 +35,6 @@ jobs:
         with:
           python-version: '3.13'
           # cache: 'pip'
-
-      - name: Install MongoDB
-        uses: supercharge/mongodb-github-action@1.12.1
 
       # Set up ssh so that GH Actions VMs can install the private Core repo
       - name: webfactory/ssh-agent

@@ -6,8 +6,9 @@ export PANDOC = pandoc
 export PYLINT = flake8
 export PYLINTFLAGS = --exclude=__main__.py
 
-# make sure we test against local DB:
-export LOCAL_MONGO=1
+# Use a local SQLite database in database/ at the top of the repo:
+export DATABASE = sqlite
+export SQLITE_LOC ?= $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/database
 
 PYTHONFILES = $(shell ls *.py)
 PYTESTFLAGS = -vv --verbose --cov-branch --cov-report term-missing --tb=short -W ignore::FutureWarning
@@ -25,12 +26,12 @@ lint: $(patsubst %.py,%.pylint,$(PYTHONFILES))
 
 pytests: FORCE
 	echo $(USER_DB_FILE)
-	export TEST_DB=1; pytest $(PYTESTFLAGS) --cov=$(PKG)
+	export TEST_DB=1 SQL_DB_NM=test_sql.db; pytest $(PYTESTFLAGS) --cov=$(PKG)
 
 # test a python file:
 %.py: FORCE
 	$(PYLINT) $(PYLINTFLAGS) $@
-	export TEST_DB=1; pytest $(PYTESTFLAGS) tests/test_$*.py
+	export TEST_DB=1 SQL_DB_NM=test_sql.db; pytest $(PYTESTFLAGS) tests/test_$*.py
 
 nocrud:
 	-rm *~

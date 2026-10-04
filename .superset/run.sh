@@ -10,7 +10,8 @@ export PYTHONPATH="${PYTHONPATH:-}:$WS"
 export FLASK_ENV=development
 export PROJ_DIR="$WS"
 export DEBUG=1
-export LOCAL_MONGO=1
+export DATABASE=sqlite
+export SQLITE_LOC="$WS/database"
 . .venv/bin/activate
 
 echo "Starting API server on http://127.0.0.1:$PORT"
