@@ -9,5 +9,7 @@ export PROJ_DIR=$PWD
 export DEBUG=1
 export HOST=127.0.0.1
 export PORT=8000
+export DATABASE=sqlite
+export SQLITE_LOC=${SQLITE_LOC:-$PROJ_DIR/database}
 
 FLASK_APP=server.endpoints flask run --debug --host=$HOST --port=$PORT

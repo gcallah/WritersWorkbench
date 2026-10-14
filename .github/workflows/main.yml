@@ -14,6 +14,8 @@ env:
   LOCAL_MONGO: '1'
   TEST_DB: '1'
   PYTHONPATH: ${{ github.workspace }}
+  DATABASE: sqlite
+  PYTHONPATH: /home/runner/work/WritersWorkbench/WritersWorkbench
   OUR_NAME: "A minimal server setup for DMM"
 
 jobs:
@@ -47,6 +49,17 @@ jobs:
 
       - name: Install Python packages
         run: make dev_env
+          # cache: 'pip'
+
+      # Set up ssh so that GH Actions VMs can install the private Core repo
+      - name: webfactory/ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.BACKENDCORE_KEY }}
+
+      - name: Install necessary packages.
+        run:
+          make dev_env
 
       - name: Run Python tests and lint
         run: make all_tests

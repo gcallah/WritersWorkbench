@@ -1,0 +1,5 @@
+{
+  "setup": ["bash \"$SUPERSET_ROOT_PATH/.superset/setup.sh\""],
+  "teardown": ["bash \"$SUPERSET_ROOT_PATH/.superset/teardown.sh\""],
+  "run": ["bash \"$SUPERSET_ROOT_PATH/.superset/run.sh\""]
+}
