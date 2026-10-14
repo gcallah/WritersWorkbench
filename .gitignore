@@ -11,6 +11,9 @@ __pycache__/
 
 # virtual env
 CosmosAndTaxis-venv/*
+/bin/
+/include/python*/
+/pyvenv.cfg
 
 # C extensions
 *.so

@@ -2,12 +2,16 @@
 This module naturally will import from lots of places, but I do hope we can cut
 back some of these imports!
 """
+import os
 import sys
+from pathlib import Path
 
 from flask import Flask
 from flask_cors import CORS
 from flask_restx import Resource, Namespace
 from werkzeug.routing import Rule
+
+from server.editor import editor
 
 from backendcore.common.constants import (  # noqa F401
     MAP,
@@ -59,6 +63,11 @@ HELLO = 'hello'
 app = Flask(__name__)
 app.config['RESTX_ERROR_404_HELP'] = False
 app.config['JSON_SORT_KEYS'] = False
+app.config['EDITOR_USERNAME'] = os.getenv('WRITERS_EDITOR_USERNAME', 'editor')
+app.config['EDITOR_PASSWORD'] = os.getenv('WRITERS_EDITOR_PASSWORD')
+app.config['CONTRIBUTOR_DATA_DIR'] = os.getenv(
+    'WRITERS_DATA_DIR', str(Path(app.instance_path) / 'contributors'))
+app.register_blueprint(editor)
 
 CORS(app)
 api.init_app(app)
@@ -85,6 +94,8 @@ api.add_namespace(endpoints)
 
 # For the frontend:
 ENDPOINTS_READ = {
+    'ContributorEditor': '/editor',
+    'Contributors': '/api/contributors',
     'AuthKey': VALID_KEY_W_NS,
     'IsValidUser': SEC_MANAGER_IS_PERMITTED_W_NS,
     'Login': LOGIN_W_NS,
@@ -165,6 +176,13 @@ class Endpoints(Resource):
         For the given rule, assemble all supported HTTP methods and their
         documentation.
         """
+        view = app.view_functions[rule.endpoint]
+        if not hasattr(view, 'view_class'):
+            doc = view.__doc__.strip() if view.__doc__ else None
+            return {
+                method.lower(): doc for method in rule.methods
+                if method not in {'HEAD', 'OPTIONS'}
+            }
         rule_class = app.view_functions[rule.endpoint].view_class
         methods = list(app.view_functions[rule.endpoint].methods)
         methods = map(lambda x: x.lower(), methods)

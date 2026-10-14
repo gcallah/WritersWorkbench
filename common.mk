@@ -9,7 +9,7 @@ export PYLINTFLAGS = --exclude=__main__.py
 # make sure we test against local DB:
 export LOCAL_MONGO=1
 
-PYTHONFILES = $(shell ls *.py)
+PYTHONFILES = $(wildcard *.py)
 PYTESTFLAGS = -vv --verbose --cov-branch --cov-report term-missing --tb=short -W ignore::FutureWarning
 
 MAIL_METHOD = api

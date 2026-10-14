@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Contributors | Writer's Workbench</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='editor.css') }}">
+  <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  <script defer src="{{ url_for('static', filename='editor.js') }}"></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="{{ url_for('editor.editor_page') }}">
+      <i data-lucide="notebook-pen" aria-hidden="true"></i>
+      Writer's Workbench
+    </a>
+    <span class="desk-label">Editorial desk</span>
+  </header>
+  <main>
+    <section class="directory" aria-labelledby="directory-title">
+      <div class="section-heading">
+        <h1 id="directory-title">Contributors <span id="count">0</span></h1>
+        <button id="add" class="icon-button" aria-label="Add contributor" title="Add contributor">
+          <i data-lucide="plus" aria-hidden="true"></i><span class="icon-fallback">+</span>
+        </button>
+      </div>
+      <label class="search-label" for="search">Search contributors</label>
+      <input id="search" type="search" placeholder="Search by name" autocomplete="off">
+      <div id="contributors" class="contributor-list" aria-label="Contributors"></div>
+      <p id="list-status" class="list-status" role="status">Loading contributors...</p>
+    </section>
+
+    <section class="workspace" aria-labelledby="contributor-name">
+      <div class="workspace-heading">
+        <div>
+          <p class="eyebrow">Contributor pieces</p>
+          <h2 id="contributor-name">No contributors yet</h2>
+        </div>
+        <span id="received" class="receipt">Not received</span>
+      </div>
+      <div class="piece-tabs" role="tablist" aria-label="Piece type">
+        <button id="bio-tab" role="tab" aria-selected="true" aria-controls="piece-panel" data-type="bio" disabled>Biography</button>
+        <button id="submission-tab" role="tab" aria-selected="false" aria-controls="piece-panel" data-type="submission" tabindex="-1" disabled>Submission</button>
+      </div>
+      <div id="piece-panel" class="piece-panel" role="tabpanel" aria-labelledby="bio-tab">
+        <div class="document-heading">
+          <label id="piece-label" for="piece-text">Biography</label>
+          <span id="character-count">0 / 100,000</span>
+        </div>
+        <textarea id="piece-text" maxlength="100000" spellcheck="true" disabled></textarea>
+        <footer class="save-bar">
+          <p id="save-status" role="status" aria-live="polite">No contributor selected</p>
+          <button id="save" class="primary" disabled>
+            <i data-lucide="save" aria-hidden="true"></i><span>Save changes</span>
+          </button>
+        </footer>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="add-dialog" aria-labelledby="dialog-title">
+    <form id="add-form">
+      <h2 id="dialog-title">Add contributor</h2>
+      <label for="new-name">Full name</label>
+      <input id="new-name" name="name" maxlength="200" required autocomplete="name">
+      <p id="add-error" class="error" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="cancel-add" type="button" class="secondary">Cancel</button>
+        <button id="create" class="primary" type="submit">Add contributor</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
