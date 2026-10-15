@@ -3,7 +3,6 @@ This module naturally will import from lots of places, but I do hope we can cut
 back some of these imports!
 """
 import os
-import sys
 from pathlib import Path
 
 from flask import Flask, request
@@ -11,6 +10,8 @@ from flask_cors import CORS
 from flask_restx import Resource, Namespace, fields
 import werkzeug.exceptions as wz
 from werkzeug.routing import Rule
+
+import backendcore.api.common as acmn
 
 from backendcore.common.constants import (  # noqa F401
     MAP,
@@ -57,6 +58,7 @@ from server.consts import (  # noqa F401
     USER_DATA,
 )
 import server.security as sec
+from server.editor import editor
 
 import projects.query as pqry
 
@@ -128,8 +130,6 @@ ENDPOINTS_READ = {
 
 SUCCESS = 0
 
-print(sys.path)
-
 
 @api.route(f'/{HELLO}')
 class Hello(Resource):
@@ -183,12 +183,12 @@ class Endpoints(Resource):
             "/static/<path:filename>"
         ]
 
-        rules = list(rule for rule in app.url_map.iter_rules())
-        rules = filter(lambda r: r.rule not in invalid_rules, rules)
-        endpoints = dict()
-        for rule in rules:
-            endpoints[rule.rule] = self._rule_docs(rule)
-        return {ENDPOINT_STR: endpoints}
+        endpoint_docs = {}
+        for rule in app.url_map.iter_rules():
+            if rule.rule not in invalid_rules:
+                endpoint_docs.setdefault(rule.rule, {}).update(
+                    self._rule_docs(rule))
+        return {ENDPOINT_STR: endpoint_docs}
 
     @staticmethod
     def _rule_docs(rule: Rule):
@@ -203,15 +203,13 @@ class Endpoints(Resource):
                 method.lower(): doc for method in rule.methods
                 if method not in {'HEAD', 'OPTIONS'}
             }
-        rule_class = app.view_functions[rule.endpoint].view_class
-        methods = list(app.view_functions[rule.endpoint].methods)
-        methods = map(lambda x: x.lower(), methods)
-        method_dict = {}
-        for m in methods:
-            rule_func = getattr(rule_class, m)
+        method_docs = {}
+        for method in view.methods:
+            method_name = method.lower()
+            rule_func = getattr(view.view_class, method_name)
             doc = rule_func.__doc__.strip() if rule_func.__doc__ else None
-            method_dict[m] = doc
-        return method_dict
+            method_docs[method_name] = doc
+        return method_docs
 
 
 # Every projects endpoint takes the auth key in the headers and the user

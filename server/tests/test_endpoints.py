@@ -36,6 +36,19 @@ def test_endpoints_map():
     assert isinstance(resp_json[ep.EP_READ_KEY], dict)
 
 
+def test_endpoints_read_preserves_routes_and_methods():
+    response = TEST_CLIENT.get(f'/{ep.ENDPOINTS}/{ep.READ}')
+    assert response.status_code == HTTPStatus.OK
+    endpoint_docs = response.get_json()[ep.ENDPOINT_STR]
+    assert set(endpoint_docs[f'/{ep.HELLO}']) == {'get', 'post'}
+    assert set(endpoint_docs['/editor']) == {'get'}
+    assert set(endpoint_docs['/api/contributors']) == {'get', 'post'}
+    assert all(endpoint_docs[f'/{ep.HELLO}'].values())
+    assert endpoint_docs['/editor']['get']
+    assert not {'/', '/swagger.json', '/swaggerui/<path:filename>',
+                '/static/<path:filename>'}.intersection(endpoint_docs)
+
+
 TEST_AUTH_KEY = 'a test auth key'
 AUTH_HDRS = {ep.AUTH_KEY: TEST_AUTH_KEY}
 USER_PARAM = {ep.pqry.USER: ep.pqry.TEST_USER}
