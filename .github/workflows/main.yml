@@ -15,7 +15,6 @@ env:
   TEST_DB: '1'
   PYTHONPATH: ${{ github.workspace }}
   DATABASE: sqlite
-  PYTHONPATH: /home/runner/work/WritersWorkbench/WritersWorkbench
   OUR_NAME: "A minimal server setup for DMM"
 
 jobs:
