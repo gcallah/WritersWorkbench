@@ -171,3 +171,62 @@ def test_editor_page_and_assets(editor_client):
     assert b'id="piece-text"' in response.data
     assert editor_client.get('/static/editor.js').status_code == 200
     assert editor_client.get('/static/editor.css').status_code == 200
+
+
+@pytest.fixture
+def edited_books():
+    from projects import contributors, query
+    from backendcore.data.caching import get_cache
+
+    codes = [query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION,
+                        query.NAME: name}) for name in ('Book A', 'Book B')]
+    yield codes
+    for code in codes:
+        for person in contributors.fetch_list(code):
+            get_cache(contributors.COLLECT).delete(person['id'])
+        query.delete(code)
+
+
+def test_editor_project_selection_and_isolation(editor_client, edited_books):
+    from projects.storage import project_directory
+
+    first, second = edited_books
+    response = editor_client.get('/api/editor/projects')
+    assert response.status_code == 200
+    assert {first, second} <= {p['code'] for p in response.json['projects']}
+    created = editor_client.post('/api/contributors',
+                                 query_string={'project': first},
+                                 json={'name': 'Ada'})
+    assert created.status_code == 201
+    person = created.json
+    url = f"/api/contributors/{person['id']}/pieces/bio"
+    saved = editor_client.post(url, query_string={'project': first},
+                               json={'text': 'Book A biography'})
+    assert saved.status_code == 200
+    assert saved.json['Bio'] is True
+    path = project_directory(first) / 'bios' / f"{person['id']}.txt"
+    assert path.read_text() == 'Book A biography'
+    assert editor_client.get(url, query_string={'project': first}).json == {
+        'text': 'Book A biography'}
+    response = editor_client.get(url, query_string={'project': second})
+    assert response.status_code == 404
+    assert editor_client.post(url, query_string={'project': second},
+                              json={'text': 'Wrong book'}).status_code == 404
+    assert editor_client.get('/api/contributors',
+                             query_string={'project': second}).json == {
+        'contributors': []}
+    # The existing unassigned editor still uses its original files.
+    assert editor_client.get('/api/contributors').json == {'contributors': []}
+    assert b'id="project-select"' in editor_client.get('/editor').data
+
+
+def test_unknown_project_does_not_fall_back_to_legacy(editor_client):
+    response = editor_client.post('/api/contributors?project=missing',
+                                  json={'name': 'Ada'})
+    assert response.status_code == 404
+    assert editor_client.get('/api/contributors').json == {'contributors': []}
+
+
+def test_project_list_requires_editor_auth(editor_client):
+    assert editor_client.get('/api/editor/projects',
+                             headers={'Authorization': ''}).status_code == 401
