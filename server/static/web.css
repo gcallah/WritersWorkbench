@@ -1,7 +1,7 @@
 /* Colors match the contributor editor (editor.css) so the site feels like one app. */
 :root {
-  --paper: #fff; --ground: #f3f5f4; --ink: #242c29; --muted: #64706b;
-  --line: #dce2df; --accent: #176650; --accent-light: #e7f1eb; --error: #ad3832;
+  --paper: #fff; --ground: #f7f4fc; --ink: #242c29; --muted: #64706b;
+  --line: #dce2df; --accent: #7c5cc4; --accent-light: #efe8fb; --error: #ad3832;
 }
 * { box-sizing: border-box; }
 body { margin: 0; color: var(--ink); background: var(--ground); font-family: 'Trebuchet MS', sans-serif; font-size: 15px; }
