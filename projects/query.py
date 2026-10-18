@@ -7,6 +7,8 @@ from uuid import uuid4
 from backendcore.data.caching import needs_cache, get_cache
 import backendcore.data.fields as cflds
 
+from projects.storage import prepare_project
+
 DB = 'projectsDB'
 COLLECT = 'Projects'
 
@@ -25,7 +27,7 @@ ESSAY = 'essay'
 
 PROJECT_TYPES = {
     SOLO_BOOK: {cflds.DESCR: 'Solo Book'},
-    COLLECTION: {cflds.DESCR: 'Collection'},
+    COLLECTION: {cflds.DESCR: 'Edited volume (multi-author)'},
     ESSAY: {cflds.DESCR: 'Essay'},
 }
 
@@ -127,6 +129,7 @@ def add(project: dict):
         _check_fld(fld_nm, project.get(fld_nm))
     project = dict(project)
     project[CODE] = uuid4().hex
+    prepare_project(project[CODE], project[TYPE] == COLLECTION)
     get_cache(COLLECT).add(project)
     return project[CODE]
 
@@ -142,6 +145,10 @@ def update(code, update_dict: dict):
     for fld_nm in REQUIRED_FLDS:
         if fld_nm in update_dict:
             _check_fld(fld_nm, update_dict[fld_nm])
+    existing = fetch_by_key(code)
+    if existing is None:
+        raise ValueError(f'No project with code {code}')
+    prepare_project(code, update_dict.get(TYPE, existing[TYPE]) == COLLECTION)
     return get_cache(COLLECT).update(code, update_dict)
 
 

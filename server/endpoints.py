@@ -61,6 +61,7 @@ import server.security as sec
 from server.editor import editor
 
 import projects.query as pqry
+import users.query as uqry
 
 ENDPOINTS = 'Endpoints'
 HELLO = 'hello'
@@ -102,12 +103,23 @@ PROJ_RETRIEVE_W_NS = f'/{PROJECTS}/{RETRIEVE}'
 PROJ_UPDATE_W_NS = f'/{PROJECTS}/{UPDATE}'
 PROJ_DELETE_W_NS = f'/{PROJECTS}/{DELETE}'
 
+# Users
+USERS = 'Users'
+USER_CREATE_W_NS = f'/{USERS}/{CREATE}'
+USER_READ_W_NS = f'/{USERS}/{READ}'
+USER_RETRIEVE_W_NS = f'/{USERS}/{RETRIEVE}'
+USER_UPDATE_W_NS = f'/{USERS}/{UPDATE}'
+USER_DELETE_W_NS = f'/{USERS}/{DELETE}'
+
 endpoints = Namespace(ENDPOINTS, 'Getting data about our endpoints.')
 api.add_namespace(endpoints)
 
 projects = Namespace(PROJECTS, 'Creating, reading, updating, and deleting '
                      + 'projects.')
 api.add_namespace(projects)
+
+users = Namespace(USERS, 'Creating, reading, updating, and deleting users.')
+api.add_namespace(users)
 
 # For the frontend:
 ENDPOINTS_READ = {
@@ -125,6 +137,11 @@ ENDPOINTS_READ = {
     'ResetTok': PW_RESET_TOK_W_NS,
     'SecurityManager': SEC_MANAGER_RETRIEVE_W_NS,
     'Signup': SIGNUP_W_NS,
+    'UserCreate': USER_CREATE_W_NS,
+    'UserDelete': USER_DELETE_W_NS,
+    'UserRetrieve': USER_RETRIEVE_W_NS,
+    'UserUpdate': USER_UPDATE_W_NS,
+    'UsersRead': USER_READ_W_NS,
 }
 
 
@@ -320,3 +337,113 @@ class ProjectDelete(Resource):
         fetch_project(code)
         pqry.delete(code)
         return {MESSAGE: 'Project deleted.'}
+
+
+USER_FLDS = users.model('User', {
+    uqry.NAME: fields.String,
+    uqry.AUTH_KEY: fields.String,
+    uqry.PASSWORD: fields.String,
+})
+USERS_READ = 'Users'
+CURRENT_PW = 'current_password'
+
+
+def public_user(user: dict) -> dict:
+    """
+    Returns a copy of the user without the auth key, which is a secret.
+    """
+    return {key: val for key, val in user.items() if key != uqry.AUTH_KEY}
+
+
+def fetch_user(user_id: str) -> dict:
+    """
+    Returns the user with this id, or raises NotFound.
+    """
+    user = uqry.fetch_by_key(user_id)
+    if user is None:
+        raise wz.NotFound(f'No user with id {user_id}')
+    return user
+
+
+def check_owner(req, user: dict):
+    """
+    Only a user may change their own record: the auth key in the
+    headers must be the one stored for them.
+    """
+    if acmn.get_auth_key_from_request(req) != user.get(uqry.AUTH_KEY):
+        raise wz.Forbidden('You may only change your own user record.')
+
+
+@users.route(f'/{CREATE}')
+@users.expect(proj_parser)
+class UserCreate(Resource):
+    @users.expect(USER_FLDS)
+    def post(self):
+        """
+        Creates a user from a name, auth key and password; returns its id.
+        """
+        check_access(request)
+        try:
+            return {uqry.ID: uqry.add(dict(request.json or {}))}
+        except ValueError as err:
+            raise wz.NotAcceptable(str(err))
+
+
+@users.route(f'/{READ}')
+@users.expect(proj_parser)
+class UsersRead(Resource):
+    def get(self):
+        """
+        Returns all users keyed by id, without their auth keys.
+        """
+        check_access(request)
+        return {USERS_READ: {user_id: public_user(user) for user_id, user
+                             in uqry.fetch_dict().items()}}
+
+
+@users.route(f'/{RETRIEVE}/<user_id>')
+@users.expect(proj_parser)
+class UserRetrieve(Resource):
+    def get(self, user_id):
+        """
+        Returns the user with this id, without their auth key.
+        """
+        check_access(request)
+        return public_user(fetch_user(user_id))
+
+
+@users.route(f'/{UPDATE}/<user_id>')
+@users.expect(proj_parser)
+class UserUpdate(Resource):
+    @users.expect(USER_FLDS)
+    def put(self, user_id):
+        """
+        Updates the user with this id. Only that user may do so, and a
+        password change also needs the current password.
+        """
+        check_access(request)
+        user = fetch_user(user_id)
+        check_owner(request, user)
+        changes = dict(request.json or {})
+        current_pw = changes.pop(CURRENT_PW, None)
+        if (uqry.PASSWORD in changes
+                and not uqry.check_password(user_id, current_pw)):
+            raise wz.Forbidden('Current password is wrong.')
+        try:
+            uqry.update(user_id, changes)
+        except ValueError as err:
+            raise wz.NotAcceptable(str(err))
+        return {MESSAGE: 'User updated.'}
+
+
+@users.route(f'/{DELETE}/<user_id>')
+@users.expect(proj_parser)
+class UserDelete(Resource):
+    def delete(self, user_id):
+        """
+        Deletes the user with this id. Only that user may do so.
+        """
+        check_access(request)
+        check_owner(request, fetch_user(user_id))
+        uqry.delete(user_id)
+        return {MESSAGE: 'User deleted.'}

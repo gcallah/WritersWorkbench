@@ -6,6 +6,8 @@ from tempfile import NamedTemporaryFile
 from threading import RLock
 from uuid import uuid4
 
+from projects import contributors, materials
+
 
 PIECE_TYPES = {'bio': 'Bio', 'submission': 'Submission'}
 MAX_TEXT_LENGTH = 100_000
@@ -84,3 +86,25 @@ class ContributorStore:
             record[PIECE_TYPES[piece_type]] = True
             self._write(record_path, json.dumps(record))
         return record
+
+
+class ProjectContributorStore:
+    """Use the same editor interface for contributors belonging to a book."""
+
+    def __init__(self, project_code):
+        contributors.require_volume(project_code)
+        self.project_code = project_code
+
+    def list_contributors(self):
+        return contributors.fetch_list(self.project_code)
+
+    def add_contributor(self, name):
+        return contributors.add(self.project_code, name)
+
+    def get_piece(self, contributor_id, piece_type):
+        return materials.read_text(self.project_code, contributor_id,
+                                   piece_type)
+
+    def save_piece(self, contributor_id, piece_type, text):
+        return materials.save_text(self.project_code, contributor_id,
+                                   piece_type, text)

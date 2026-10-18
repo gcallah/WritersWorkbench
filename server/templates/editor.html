@@ -18,6 +18,11 @@
   </header>
   <main>
     <section class="directory" aria-labelledby="directory-title">
+      <label class="search-label" for="project-select">Project</label>
+      <select id="project-select" aria-label="Project" disabled>
+        <option value="">Unassigned contributors (existing data)</option>
+      </select>
+      <p id="project-status" role="status"></p>
       <div class="section-heading">
         <h1 id="directory-title">Contributors <span id="count">0</span></h1>
         <button id="add" class="icon-button" aria-label="Add contributor" title="Add contributor">

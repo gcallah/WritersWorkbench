@@ -11,9 +11,14 @@ let pieceType = 'bio';
 let savedText = '';
 let busy = false;
 let creating = false;
+let projectCode = '';
+let projectsAvailable = false;
 
 async function api(path, options = {}) {
   const url = new URL(path, location.origin);
+  if (projectCode && path.startsWith('/api/contributors')) {
+    url.searchParams.set('project', projectCode);
+  }
   const response = await fetch(url, { credentials: 'same-origin', ...options });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'The request failed.');
@@ -34,6 +39,7 @@ function allowDiscard() {
 }
 
 function updateControls() {
+  byId('project-select').disabled = busy || creating || !projectsAvailable;
   text.disabled = busy || selected === null;
   byId('save').disabled = busy || !dirty() || !text.value.trim();
   byId('add').disabled = busy;
@@ -190,15 +196,63 @@ window.addEventListener('beforeunload', (event) => {
   }
 });
 
+async function loadContributors() {
+  const data = await api('/api/contributors');
+  contributors = data.contributors;
+  renderContributors();
+  if (contributors.length) await loadPiece(contributors[0], 'bio');
+}
+
+byId('project-select').addEventListener('change', async () => {
+  const selector = byId('project-select');
+  if (!allowDiscard()) {
+    selector.value = projectCode;
+    return;
+  }
+  projectCode = selector.value;
+  selected = null;
+  contributors = [];
+  savedText = '';
+  text.value = '';
+  byId('contributor-name').textContent = 'No contributor selected';
+  renderContributors();
+  renderReceipt();
+  busy = true;
+  updateControls();
+  status('Loading contributors...');
+  try {
+    await loadContributors();
+    if (!contributors.length) status('Add a contributor to this project.');
+  } catch (error) {
+    status(error.message, true);
+  } finally {
+    busy = false;
+    updateControls();
+  }
+});
+
 async function initialize() {
   if (window.lucide) window.lucide.createIcons();
   busy = true;
   updateControls();
   try {
-    const data = await api('/api/contributors');
-    contributors = data.contributors;
-    renderContributors();
-    if (contributors.length) await loadPiece(contributors[0], 'bio');
+    try {
+      const data = await api('/api/editor/projects');
+      const selector = byId('project-select');
+      data.projects.forEach((project) => {
+        const option = document.createElement('option');
+        option.value = project.code;
+        option.textContent = `${project.name} (${project.code.slice(0, 8)})`;
+        selector.append(option);
+      });
+      projectsAvailable = true;
+      byId('project-status').textContent = data.projects.length ?
+        'Select a book to manage its contributors.' :
+        'No edited volumes yet. Create one through the Projects API.';
+    } catch (error) {
+      byId('project-status').textContent = `Could not load projects: ${error.message}`;
+    }
+    await loadContributors();
   } catch (error) {
     byId('list-status').textContent = error.message;
     status(error.message, true);

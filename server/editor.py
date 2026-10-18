@@ -4,13 +4,17 @@ from secrets import compare_digest
 from flask import Blueprint, current_app, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 
-from server.projects import ContributorStore
+from server.projects import ContributorStore, ProjectContributorStore
+from projects import query as projects_query
 
 
 editor = Blueprint('editor', __name__, template_folder='templates')
 
 
 def _store():
+    project_code = request.args.get('project')
+    if project_code:
+        return ProjectContributorStore(project_code)
     return ContributorStore(current_app.config['CONTRIBUTOR_DATA_DIR'])
 
 
@@ -66,7 +70,7 @@ def invalid_input(error):
 @editor.errorhandler(KeyError)
 def missing_contributor(_error):
     """Report unknown contributors."""
-    return jsonify(error='Contributor not found.'), 404
+    return jsonify(error='Project or contributor not found.'), 404
 
 
 @editor.errorhandler(OSError)
@@ -112,3 +116,12 @@ def save_piece(contributor_id, piece_type):
     record = _store().save_piece(contributor_id, piece_type,
                                  _payload().get('text'))
     return jsonify(record)
+
+
+@editor.get('/api/editor/projects')
+def edited_volumes():
+    """List edited volumes for the existing shared editor account."""
+    volumes = [project for project in projects_query.fetch_list()
+               if project[projects_query.TYPE] == projects_query.COLLECTION]
+    volumes.sort(key=lambda project: project[projects_query.NAME].casefold())
+    return jsonify(projects=volumes)

@@ -170,3 +170,56 @@ def test_project_delete_not_there():
     resp = TEST_CLIENT.delete(f'{ep.PROJ_DELETE_W_NS}/{NO_SUCH_CODE}',
                               query_string=USER_PARAM, headers=AUTH_HDRS)
     assert resp.status_code == HTTPStatus.NOT_FOUND
+
+
+OWNER_HDRS = {ep.AUTH_KEY: ep.uqry.TEST_SAMPLE[ep.uqry.AUTH_KEY]}
+STRANGER_HDRS = {ep.AUTH_KEY: 'someone else'}
+NO_SUCH_ID = 'not an existing id'
+
+
+@pytest.fixture(scope='function')
+def temp_user():
+    user_id = ep.uqry.add(deepcopy(ep.uqry.TEST_SAMPLE))
+    yield user_id
+    if ep.uqry.is_valid(user_id):
+        ep.uqry.delete(user_id)
+
+
+def test_user_create():
+    resp = TEST_CLIENT.post(ep.USER_CREATE_W_NS,
+                            json=ep.uqry.TEST_SAMPLE,
+                            query_string=USER_PARAM, headers=AUTH_HDRS)
+    assert resp.status_code == HTTPStatus.OK
+    ep.uqry.delete(resp.get_json()[ep.uqry.ID])
+
+
+def test_user_create_no_password():
+    no_pw = {key: val for key, val in ep.uqry.TEST_SAMPLE.items()
+             if key != ep.uqry.PASSWORD}
+    resp = TEST_CLIENT.post(ep.USER_CREATE_W_NS, json=no_pw,
+                            query_string=USER_PARAM, headers=AUTH_HDRS)
+    assert resp.status_code == HTTPStatus.NOT_ACCEPTABLE
+
+
+def test_user_retrieve_hides_auth_key(temp_user):
+    resp = TEST_CLIENT.get(f'{ep.USER_RETRIEVE_W_NS}/{temp_user}',
+                           query_string=USER_PARAM, headers=AUTH_HDRS)
+    assert resp.status_code == HTTPStatus.OK
+    assert ep.uqry.AUTH_KEY not in resp.get_json()
+
+
+def test_user_update_by_stranger(temp_user):
+    resp = TEST_CLIENT.put(f'{ep.USER_UPDATE_W_NS}/{temp_user}',
+                           json={ep.uqry.NAME: 'Hacked'},
+                           query_string=USER_PARAM, headers=STRANGER_HDRS)
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+
+
+def test_user_password_change(temp_user):
+    resp = TEST_CLIENT.put(
+        f'{ep.USER_UPDATE_W_NS}/{temp_user}',
+        json={ep.uqry.PASSWORD: 'a new password',
+              ep.CURRENT_PW: ep.uqry.TEST_SAMPLE[ep.uqry.PASSWORD]},
+        query_string=USER_PARAM, headers=OWNER_HDRS)
+    assert resp.status_code == HTTPStatus.OK
+    assert ep.uqry.check_password(temp_user, 'a new password')
