@@ -9,12 +9,21 @@ from server.projects import ContributorStore
 from server.endpoints import app
 
 
-def test_save_bio_persists_text_and_flag(tmp_path):
-    store = ContributorStore(tmp_path)
-    contributor = store.add_contributor('Ada Writer')
+@pytest.fixture
+def contributor_store(tmp_path):
+    return ContributorStore(tmp_path)
+
+
+@pytest.fixture
+def contributor(contributor_store):
+    return contributor_store.add_contributor('Ada Writer')
+
+
+def test_save_bio_persists_text_and_flag(contributor_store, contributor,
+                                         tmp_path):
     text = 'Ada writes fiction.\nHer work appears in literary journals.'
 
-    result = store.save_piece(contributor['id'], 'bio', text)
+    result = contributor_store.save_piece(contributor['id'], 'bio', text)
 
     assert result['Bio'] is True
     directory = tmp_path / contributor['id']
@@ -22,66 +31,71 @@ def test_save_bio_persists_text_and_flag(tmp_path):
     assert json.loads((directory / 'contributor.json').read_text())['Bio']
     assert ContributorStore(tmp_path).get_piece(
         contributor['id'], 'bio') == text
-    assert store.list_contributors() == [result]
+    assert contributor_store.list_contributors() == [result]
 
 
-def test_submission_does_not_mark_bio_received(tmp_path):
-    store = ContributorStore(tmp_path)
-    contributor = store.add_contributor('Ada Writer')
-    assert store.get_piece(contributor['id'], 'bio') == ''
-    result = store.save_piece(
+def test_submission_does_not_mark_bio_received(contributor_store, contributor):
+    assert contributor_store.get_piece(contributor['id'], 'bio') == ''
+    result = contributor_store.save_piece(
         contributor['id'], 'submission', 'A short story.')
     assert result['Submission'] is True
     assert result['Bio'] is False
 
 
 @pytest.mark.parametrize('contributor_id', ['../outside', '/etc', 'missing'])
-def test_rejects_unsafe_ids(tmp_path, contributor_id):
+def test_rejects_unsafe_ids(contributor_store, contributor_id):
     with pytest.raises(ValueError):
-        ContributorStore(tmp_path).save_piece(contributor_id, 'bio', 'Text')
+        contributor_store.save_piece(contributor_id, 'bio', 'Text')
 
 
-def test_unknown_contributor(tmp_path):
+def test_unknown_contributor(contributor_store):
     with pytest.raises(KeyError):
-        ContributorStore(tmp_path).save_piece('a' * 32, 'bio', 'Text')
+        contributor_store.save_piece('a' * 32, 'bio', 'Text')
 
 
 @pytest.mark.parametrize('name', ['', '  ', None, 42, 'a' * 201])
-def test_invalid_contributor_name(tmp_path, name):
+def test_invalid_contributor_name(contributor_store, name):
     with pytest.raises(ValueError):
-        ContributorStore(tmp_path).add_contributor(name)
+        contributor_store.add_contributor(name)
 
 
 @pytest.mark.parametrize('piece_type,text', [
     ('../bio', 'Text'), ('bio', ''), ('bio', '  '),
     ('bio', None), ('bio', 'a' * 100_001),
-])
-def test_invalid_piece_does_not_change_record(tmp_path, piece_type, text):
-    store = ContributorStore(tmp_path)
-    contributor = store.add_contributor('Ada Writer')
+], ids=['invalid-type', 'empty', 'whitespace', 'non-string', 'too-long'])
+def test_invalid_piece_does_not_change_record(contributor_store, contributor,
+                                              piece_type, text):
     with pytest.raises(ValueError):
-        store.save_piece(contributor['id'], piece_type, text)
-    assert store.list_contributors() == [contributor]
+        contributor_store.save_piece(contributor['id'], piece_type, text)
+    assert contributor_store.list_contributors() == [contributor]
 
 
-def test_failed_file_write_does_not_mark_bio(tmp_path):
-    store = ContributorStore(tmp_path)
-    contributor = store.add_contributor('Ada Writer')
-    with patch.object(store, '_write', side_effect=OSError('Disk full')):
+@pytest.mark.parametrize('operation', ['get_piece', 'save_piece'])
+def test_unknown_piece_type_raises_value_error(contributor_store, contributor,
+                                               operation):
+    with pytest.raises(ValueError, match='Unknown piece type'):
+        if operation == 'get_piece':
+            contributor_store.get_piece(contributor['id'], 'draft')
+        else:
+            contributor_store.save_piece(contributor['id'], 'draft', 'Text')
+
+
+def test_failed_file_write_does_not_mark_bio(contributor_store, contributor):
+    with patch.object(contributor_store, '_write',
+                      side_effect=OSError('Disk full')):
         with pytest.raises(OSError):
-            store.save_piece(contributor['id'], 'bio', 'Text')
-    assert store.list_contributors()[0]['Bio'] is False
+            contributor_store.save_piece(contributor['id'], 'bio', 'Text')
+    assert contributor_store.list_contributors()[0]['Bio'] is False
 
 
-def test_replace_bio_preserves_unicode_and_other_contributors(tmp_path):
-    store = ContributorStore(tmp_path)
-    contributor = store.add_contributor('Ada Writer')
-    other = store.add_contributor('Other Writer')
-    store.save_piece(contributor['id'], 'bio', 'Original')
+def test_replace_bio_preserves_unicode_and_other_contributors(
+        contributor_store, contributor):
+    other = contributor_store.add_contributor('Other Writer')
+    contributor_store.save_piece(contributor['id'], 'bio', 'Original')
     text = 'Ren\u00e9e writes poetry.\n\nSecond paragraph.'
-    store.save_piece(contributor['id'], 'bio', text)
-    assert store.get_piece(contributor['id'], 'bio') == text
-    assert store.get_piece(other['id'], 'bio') == ''
+    contributor_store.save_piece(contributor['id'], 'bio', text)
+    assert contributor_store.get_piece(contributor['id'], 'bio') == text
+    assert contributor_store.get_piece(other['id'], 'bio') == ''
 
 
 @pytest.fixture
