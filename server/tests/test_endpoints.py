@@ -4,6 +4,7 @@ This file contains the tests for our app's endpoints.
 from copy import deepcopy
 from http import HTTPStatus
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 
@@ -223,3 +224,91 @@ def test_user_password_change(temp_user):
         query_string=USER_PARAM, headers=OWNER_HDRS)
     assert resp.status_code == HTTPStatus.OK
     assert ep.uqry.check_password(temp_user, 'a new password')
+
+
+def test_users_read_hides_auth_keys(temp_user):
+    resp = TEST_CLIENT.get(ep.USER_READ_W_NS, query_string=USER_PARAM,
+                           headers=AUTH_HDRS)
+    assert resp.status_code == HTTPStatus.OK
+    users = resp.get_json()[ep.USERS_READ]
+    assert temp_user in users
+    for user in users.values():
+        assert ep.uqry.AUTH_KEY not in user
+
+
+def test_user_retrieve_not_there():
+    resp = TEST_CLIENT.get(f'{ep.USER_RETRIEVE_W_NS}/{NO_SUCH_ID}',
+                           query_string=USER_PARAM, headers=AUTH_HDRS)
+    assert resp.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_fetch_user_not_there():
+    with pytest.raises(ep.wz.NotFound):
+        ep.fetch_user(NO_SUCH_ID)
+
+
+def test_check_owner_wrong_key(temp_user):
+    with ep.app.test_request_context(headers=STRANGER_HDRS):
+        with pytest.raises(ep.wz.Forbidden):
+            ep.check_owner(ep.request, ep.fetch_user(temp_user))
+
+
+def test_user_password_change_wrong_current(temp_user):
+    resp = TEST_CLIENT.put(
+        f'{ep.USER_UPDATE_W_NS}/{temp_user}',
+        json={ep.uqry.PASSWORD: 'a new password',
+              ep.CURRENT_PW: 'the wrong password'},
+        query_string=USER_PARAM, headers=OWNER_HDRS)
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+    assert ep.uqry.check_password(temp_user,
+                                  ep.uqry.TEST_SAMPLE[ep.uqry.PASSWORD])
+
+
+def test_user_delete(temp_user):
+    resp = TEST_CLIENT.delete(f'{ep.USER_DELETE_W_NS}/{temp_user}',
+                              query_string=USER_PARAM, headers=OWNER_HDRS)
+    assert resp.status_code == HTTPStatus.OK
+    assert ep.uqry.fetch_by_key(temp_user) is None
+
+
+@patch('users.query.delete', autospec=True)
+def test_user_delete_by_stranger(mock_delete, temp_user):
+    resp = TEST_CLIENT.delete(f'{ep.USER_DELETE_W_NS}/{temp_user}',
+                              query_string=USER_PARAM, headers=STRANGER_HDRS)
+    assert resp.status_code == HTTPStatus.FORBIDDEN
+    mock_delete.assert_not_called()
+
+
+LEGACY_HDRS = {ep.AUTH_KEY: 'legacy-auth-key'}
+
+
+@pytest.fixture(scope='function')
+def legacy_user():
+    """
+    A user saved before passwords existed, so it has no password hash.
+    """
+    user_id = uuid4().hex
+    ep.uqry.fetch_list()  # makes sure the users cache is loaded
+    ep.uqry.get_cache(ep.uqry.COLLECT).add({
+        ep.uqry.ID: user_id,
+        ep.uqry.NAME: 'Legacy User',
+        ep.uqry.AUTH_KEY: LEGACY_HDRS[ep.AUTH_KEY],
+    })
+    yield user_id
+    if ep.uqry.is_valid(user_id):
+        ep.uqry.delete(user_id)
+
+
+def test_legacy_user_sets_first_password(legacy_user):
+    resp = TEST_CLIENT.put(f'{ep.USER_UPDATE_W_NS}/{legacy_user}',
+                           json={ep.uqry.PASSWORD: 'first password'},
+                           query_string=USER_PARAM, headers=LEGACY_HDRS)
+    assert resp.status_code == HTTPStatus.OK
+    assert ep.uqry.check_password(legacy_user, 'first password')
+
+
+def test_legacy_password_by_stranger(legacy_user):
+    resp = TEST_CLIENT.put(f'{ep.USER_UPDATE_W_NS}/{legacy_user}',
+                           json={ep.uqry.PASSWORD: 'hijacked'},
+                           query_string=USER_PARAM, headers=STRANGER_HDRS)
+    assert resp.status_code == HTTPStatus.FORBIDDEN
