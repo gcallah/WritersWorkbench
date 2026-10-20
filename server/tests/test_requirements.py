@@ -77,3 +77,56 @@ def test_missing_and_wrong_type(client):
                            ).status_code == 400
     finally:
         qry.delete(code)
+
+
+def test_requirements_preserve_received_bio_and_file(client, books):
+    from projects import contributors, materials
+    code = books[0]
+    person = contributors.add(code, 'Test Author')
+    try:
+        materials.save_text(code, person['id'], 'bio', 'Existing biography')
+        before = contributors.fetch(code, person['id'])
+        for required in (True, False):
+            response = client.post(endpoint(code), json={
+                field: required for field in qry.REQUIREMENT_FIELDS})
+            assert response.status_code == 200
+            assert contributors.fetch(code, person['id']) == before
+            assert materials.read_text(code, person['id'], 'bio') == (
+                'Existing biography')
+    finally:
+        qry.get_cache(contributors.COLLECT).delete(person['id'])
+
+
+def test_existing_projects_api_accepts_requirements(client, books):
+    from server import endpoints as ep
+    headers = {ep.AUTH_KEY: 'test-key'}
+    params = {qry.USER: qry.TEST_USER}
+    payload = {qry.NAME: 'API book', qry.TYPE: qry.COLLECTION,
+               **dict.fromkeys(qry.REQUIREMENT_FIELDS, True)}
+    response = client.post(ep.PROJ_CREATE_W_NS, json=payload,
+                           headers=headers, query_string=params)
+    assert response.status_code == 200
+    code = response.json[qry.CODE]
+    try:
+        response = client.put(f'{ep.PROJ_UPDATE_W_NS}/{code}',
+                              json={qry.NAME: 'Renamed through existing API'},
+                              headers=headers, query_string=params)
+        assert response.status_code == 200
+        project = client.get(f'{ep.PROJ_RETRIEVE_W_NS}/{code}',
+                             headers=headers, query_string=params).json
+        assert all(project[f] is True for f in qry.REQUIREMENT_FIELDS)
+        response = client.put(f'{ep.PROJ_UPDATE_W_NS}/{code}',
+                              json={qry.REQUIRES_BIO: 'false'},
+                              headers=headers, query_string=params)
+        assert response.status_code == 406
+        assert qry.fetch_by_key(code)[qry.REQUIRES_BIO] is True
+    finally:
+        qry.delete(code)
+
+
+def test_storage_failure_not_reported_as_saved(client, books, monkeypatch):
+    monkeypatch.setattr(qry, 'update', lambda *args: False)
+    response = client.post(endpoint(books[0]),
+                           json={qry.REQUIRES_BIO: True})
+    assert response.status_code == 500
+    assert qry.fetch_by_key(books[0])[qry.REQUIRES_BIO] is False
