@@ -238,6 +238,9 @@ proj_parser.add_argument(pqry.USER, location='args', required=True)
 PROJECT_FLDS = projects.model('Project', {
     pqry.NAME: fields.String,
     pqry.TYPE: fields.String,
+    pqry.REQUIRES_BIO: fields.Boolean,
+    pqry.REQUIRES_PERMISSION: fields.Boolean,
+    pqry.REQUIRES_ADDRESS: fields.Boolean,
 })
 
 
