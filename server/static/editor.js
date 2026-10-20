@@ -13,6 +13,40 @@ let busy = false;
 let creating = false;
 let projectCode = '';
 let projectsAvailable = false;
+const requirementFields = ['requires_bio', 'requires_permission', 'requires_address'];
+let savedRequirements = null;
+
+function requirementValues() {
+  return Object.fromEntries(requirementFields.map((field) => [field, byId(field).checked]));
+}
+
+function requirementsDirty() {
+  return savedRequirements !== null && requirementFields.some(
+    (field) => byId(field).checked !== savedRequirements[field]);
+}
+
+function requirementsStatus(message, error = false) {
+  byId('requirements-status').textContent = message;
+  byId('requirements-status').classList.toggle('error', error);
+}
+
+async function loadRequirements() {
+  savedRequirements = null;
+  requirementFields.forEach((field) => { byId(field).checked = false; });
+  requirementsStatus('');
+  updateControls();
+  if (!projectCode) return;
+  requirementsStatus('Loading requirements...');
+  try {
+    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/requirements`);
+    savedRequirements = data.requirements;
+    requirementFields.forEach((field) => { byId(field).checked = savedRequirements[field]; });
+    requirementsStatus('Requirements loaded.');
+  } catch (error) {
+    requirementsStatus(`Could not load requirements: ${error.message} Select the project again to retry.`, true);
+  }
+}
+
 
 async function api(path, options = {}) {
   const url = new URL(path, location.origin);
@@ -30,18 +64,26 @@ function status(message, error = false) {
   byId('save-status').classList.toggle('error', error);
 }
 
-function dirty() {
+function pieceDirty() {
   return selected !== null && text.value !== savedText;
 }
 
-function allowDiscard() {
-  return !dirty() || confirm('Discard unsaved changes?');
+function dirty() {
+  return pieceDirty() || requirementsDirty();
+}
+
+function allowDiscard(includeRequirements = false) {
+  const unsaved = pieceDirty() || (includeRequirements && requirementsDirty());
+  return !unsaved || confirm('Discard unsaved changes?');
 }
 
 function updateControls() {
   byId('project-select').disabled = busy || creating || !projectsAvailable;
   text.disabled = busy || selected === null;
-  byId('save').disabled = busy || !dirty() || !text.value.trim();
+  byId('save').disabled = busy || !pieceDirty() || !text.value.trim();
+  byId('requirements-form').hidden = !projectCode;
+  byId('requirements-fields').disabled = busy || creating || savedRequirements === null;
+  byId('requirements-save').disabled = busy || creating || !requirementsDirty();
   byId('add').disabled = busy;
   tabs.forEach((tab) => { tab.disabled = busy || selected === null; });
   byId('character-count').textContent = `${text.value.length.toLocaleString()} / 100,000`;
@@ -124,12 +166,12 @@ tabs.forEach((tab, index) => {
 });
 
 text.addEventListener('input', () => {
-  status(dirty() ? 'Unsaved changes' : 'All changes saved');
+  status(pieceDirty() ? 'Unsaved changes' : 'All changes saved');
   updateControls();
 });
 byId('search').addEventListener('input', renderContributors);
 byId('save').addEventListener('click', async () => {
-  if (busy || !selected || !dirty() || !text.value.trim()) return;
+  if (busy || !selected || !pieceDirty() || !text.value.trim()) return;
   busy = true;
   updateControls();
   status('Saving...');
@@ -205,11 +247,12 @@ async function loadContributors() {
 
 byId('project-select').addEventListener('change', async () => {
   const selector = byId('project-select');
-  if (!allowDiscard()) {
+  if (!allowDiscard(true)) {
     selector.value = projectCode;
     return;
   }
   projectCode = selector.value;
+  savedRequirements = null;
   selected = null;
   contributors = [];
   savedText = '';
@@ -221,10 +264,39 @@ byId('project-select').addEventListener('change', async () => {
   updateControls();
   status('Loading contributors...');
   try {
+    await loadRequirements();
     await loadContributors();
     if (!contributors.length) status('Add a contributor to this project.');
   } catch (error) {
     status(error.message, true);
+  } finally {
+    busy = false;
+    updateControls();
+  }
+});
+
+requirementFields.forEach((field) => {
+  byId(field).addEventListener('change', () => {
+    requirementsStatus(requirementsDirty() ? 'Unsaved requirements' : 'Requirements unchanged');
+    updateControls();
+  });
+});
+
+byId('requirements-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (busy || creating || !projectCode || !requirementsDirty()) return;
+  busy = true;
+  updateControls();
+  requirementsStatus('Saving requirements...');
+  try {
+    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/requirements`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requirementValues()),
+    });
+    savedRequirements = data.requirements;
+    requirementsStatus('Requirements saved.');
+  } catch (error) {
+    requirementsStatus(error.message, true);
   } finally {
     busy = false;
     updateControls();

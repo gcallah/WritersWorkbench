@@ -23,6 +23,17 @@
         <option value="">Unassigned contributors (existing data)</option>
       </select>
       <p id="project-status" role="status"></p>
+      <form id="requirements-form" class="project-requirements" hidden>
+        <fieldset id="requirements-fields" disabled>
+          <legend>What must each author provide?</legend>
+          <label><input type="checkbox" id="requires_bio"> A biography</label>
+          <label><input type="checkbox" id="requires_permission"> Permission to publish</label>
+          <label><input type="checkbox" id="requires_address"> An address</label>
+          <p>Checked means required for this project. This does not mark anything as received.</p>
+          <button type="submit" id="requirements-save" class="secondary" disabled>Save requirements</button>
+        </fieldset>
+        <p id="requirements-status" role="status" aria-live="polite"></p>
+      </form>
       <div class="section-heading">
         <h1 id="directory-title">Contributors <span id="count">0</span></h1>
         <button id="add" class="icon-button" aria-label="Add contributor" title="Add contributor">
