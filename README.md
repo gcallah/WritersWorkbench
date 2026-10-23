@@ -195,4 +195,4 @@ web.bat
 ```
 
 It runs on port 8002. Open `http://127.0.0.1:8002/web/` and log in as `editor`
-with the password it asks you to choose. On Mac or Linux, use `./web.sh`.
+with the password it asks you to choose.
