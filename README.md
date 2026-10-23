@@ -179,3 +179,20 @@ Run tests in a subshell that stops on errors and shuts down its test database:
 
 Port 27017 must be free before starting this dedicated database. If MongoDB fails
 to start, inspect `$HOME/.local/share/writersworkbench/mongodb/mongod.log`.
+
+### Running on Windows
+
+From the Command Prompt, in the repo folder, install the requirements once:
+
+```
+pip install -r requirements.txt
+```
+
+Then start the web interface with:
+
+```
+web.bat
+```
+
+It runs on port 8002. Open `http://127.0.0.1:8002/web/` and log in as `editor`
+with the password it asks you to choose. On Mac or Linux, use `./web.sh`.
