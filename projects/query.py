@@ -20,6 +20,30 @@ TYPE = 'type'
 
 REQUIRED_FLDS = [NAME, USER, TYPE]
 
+# Project requirements, distinct from each contributor's received flags.
+REQUIRES_BIO = 'requires_bio'
+REQUIRES_PERMISSION = 'requires_permission'
+REQUIRES_ADDRESS = 'requires_address'
+REQUIREMENT_FIELDS = (REQUIRES_BIO, REQUIRES_PERMISSION, REQUIRES_ADDRESS)
+
+
+def _check_requirements(project):
+    for field in REQUIREMENT_FIELDS:
+        if field in project and type(project[field]) is not bool:
+            raise ValueError(f'Project {field} must be true or false.')
+
+
+def _with_requirements(project):
+    if project is None:
+        return None
+    result = dict(project)
+    for field in REQUIREMENT_FIELDS:
+        # Older SQLite rows may have NULL after a new column is added.
+        if result.get(field) is None:
+            result[field] = False
+    return result
+
+
 # Project types: to add a type, just add an entry here.
 SOLO_BOOK = 'solo_book'
 COLLECTION = 'collection'
@@ -80,7 +104,7 @@ def fetch_list():
     """
     Fetch all projects: returns a list
     """
-    return get_cache(COLLECT).fetch_list()
+    return [_with_requirements(p) for p in get_cache(COLLECT).fetch_list()]
 
 
 @needs_projects_cache
@@ -88,7 +112,8 @@ def fetch_dict():
     """
     Fetch all projects: returns a dict keyed by project code.
     """
-    return get_cache(COLLECT).fetch_dict()
+    return {code: _with_requirements(p)
+            for code, p in get_cache(COLLECT).fetch_dict().items()}
 
 
 @needs_projects_cache
@@ -108,7 +133,7 @@ def fetch_by_key(code):
     """
     Get a single project by its code.
     """
-    return get_cache(COLLECT).fetch_by_key(code)
+    return _with_requirements(get_cache(COLLECT).fetch_by_key(code))
 
 
 @needs_projects_cache
@@ -116,7 +141,8 @@ def fetch_by_user(user):
     """
     Get all projects belonging to a user: returns a dict keyed by code.
     """
-    return get_cache(COLLECT).fetch_by_fld_val(USER, user)
+    return {code: _with_requirements(p) for code, p in
+            get_cache(COLLECT).fetch_by_fld_val(USER, user).items()}
 
 
 @needs_projects_cache
@@ -127,7 +153,8 @@ def add(project: dict):
     """
     for fld_nm in REQUIRED_FLDS:
         _check_fld(fld_nm, project.get(fld_nm))
-    project = dict(project)
+    _check_requirements(project)
+    project = _with_requirements(project)
     project[CODE] = uuid4().hex
     prepare_project(project[CODE], project[TYPE] == COLLECTION)
     get_cache(COLLECT).add(project)
@@ -145,6 +172,7 @@ def update(code, update_dict: dict):
     for fld_nm in REQUIRED_FLDS:
         if fld_nm in update_dict:
             _check_fld(fld_nm, update_dict[fld_nm])
+    _check_requirements(update_dict)
     existing = fetch_by_key(code)
     if existing is None:
         raise ValueError(f'No project with code {code}')

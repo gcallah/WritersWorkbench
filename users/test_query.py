@@ -196,6 +196,12 @@ def test_legacy_user_remains_usable(legacy_user):
     assert qry.fetch_by_key(legacy_user) is None
 
 
+def test_has_password(temp_user, legacy_user):
+    assert qry.has_password(temp_user)
+    assert not qry.has_password(legacy_user)
+    assert not qry.has_password('no such user')
+
+
 def test_same_password_has_different_salts(temp_user):
     other_id = qry.add(get_sample())
     try:

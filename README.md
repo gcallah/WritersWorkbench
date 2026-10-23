@@ -180,6 +180,7 @@ Run tests in a subshell that stops on errors and shuts down its test database:
 Port 27017 must be free before starting this dedicated database. If MongoDB fails
 to start, inspect `$HOME/.local/share/writersworkbench/mongodb/mongod.log`.
 
+issue-4-web-interface
 ### Running on Windows
 
 From the Command Prompt, in the repo folder, install the requirements once:
@@ -196,3 +197,14 @@ web.bat
 
 It runs on port 8002. Open `http://127.0.0.1:8002/web/` and log in as `editor`
 with the password it asks you to choose.
+
+
+### Author requirements
+
+In `/editor`, select an edited-volume project to choose whether each author
+must provide a biography, permission to publish, or an address. Click
+**Save requirements** to store the choices. These settings are separate from
+whether an author has already submitted each item.
+See [project requirement settings](docs/project_requirements.md) for API fields,
+compatibility notes and integration instructions.
+master

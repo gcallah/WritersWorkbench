@@ -248,6 +248,9 @@ proj_parser.add_argument(pqry.USER, location='args', required=True)
 PROJECT_FLDS = projects.model('Project', {
     pqry.NAME: fields.String,
     pqry.TYPE: fields.String,
+    pqry.REQUIRES_BIO: fields.Boolean,
+    pqry.REQUIRES_PERMISSION: fields.Boolean,
+    pqry.REQUIRES_ADDRESS: fields.Boolean,
 })
 
 
@@ -429,14 +432,14 @@ class UserUpdate(Resource):
     def put(self, user_id):
         """
         Updates the user with this id. Only that user may do so, and a
-        password change also needs the current password.
+        password change also needs the current password, if one is set.
         """
         check_access(request)
         user = fetch_user(user_id)
         check_owner(request, user)
         changes = dict(request.json or {})
         current_pw = changes.pop(CURRENT_PW, None)
-        if (uqry.PASSWORD in changes
+        if (uqry.PASSWORD in changes and uqry.has_password(user_id)
                 and not uqry.check_password(user_id, current_pw)):
             raise wz.Forbidden('Current password is wrong.')
         try:

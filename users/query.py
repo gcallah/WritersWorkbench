@@ -112,6 +112,13 @@ def check_password(user_id, password):
 
 
 @needs_users_cache
+def has_password(user_id):
+    """Return True when the user exists and has a password hash."""
+    user = get_cache(COLLECT).fetch_by_key(user_id)
+    return bool(user and user.get(PASSWORD_HASH))
+
+
+@needs_users_cache
 def delete(user_id):
     if fetch_by_key(user_id) is None:
         raise ValueError(f'No user with id {user_id}')

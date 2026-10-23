@@ -125,3 +125,32 @@ def edited_volumes():
                if project[projects_query.TYPE] == projects_query.COLLECTION]
     volumes.sort(key=lambda project: project[projects_query.NAME].casefold())
     return jsonify(projects=volumes)
+
+
+def _volume_requirements(code):
+    project = projects_query.fetch_by_key(code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if project[projects_query.TYPE] != projects_query.COLLECTION:
+        raise ValueError('Requirements editor needs an edited-volume project.')
+    return {field: project[field]
+            for field in projects_query.REQUIREMENT_FIELDS}
+
+
+@editor.get('/api/editor/projects/<code>/requirements')
+def read_requirements(code):
+    """Read the requirements shared by all authors in an edited volume."""
+    return jsonify(requirements=_volume_requirements(code))
+
+
+@editor.post('/api/editor/projects/<code>/requirements')
+def save_requirements(code):
+    """Save requirement flags without changing other project fields."""
+    _volume_requirements(code)
+    changes = _payload()
+    unknown = set(changes) - set(projects_query.REQUIREMENT_FIELDS)
+    if not changes or unknown:
+        raise ValueError('Send only project requirement settings.')
+    if not projects_query.update(code, changes):
+        raise OSError('Could not update project requirements.')
+    return jsonify(requirements=_volume_requirements(code))
