@@ -3,6 +3,7 @@ This module naturally will import from lots of places, but I do hope we can cut
 back some of these imports!
 """
 import os
+import secrets
 from pathlib import Path
 
 from flask import Flask, request
@@ -59,6 +60,7 @@ from server.consts import (  # noqa F401
 )
 import server.security as sec
 from server.editor import editor
+from server.web import web
 
 import projects.query as pqry
 import users.query as uqry
@@ -74,6 +76,12 @@ app.config['EDITOR_PASSWORD'] = os.getenv('WRITERS_EDITOR_PASSWORD')
 app.config['CONTRIBUTOR_DATA_DIR'] = os.getenv(
     'WRITERS_DATA_DIR', str(Path(app.instance_path) / 'contributors'))
 app.register_blueprint(editor)
+app.register_blueprint(web)
+
+# The web pages use flash() messages, which Flask keeps in a signed cookie.
+# Signing needs a secret key. Set WRITERS_SECRET_KEY on a real server;
+# locally we make up a random one each time the server starts.
+app.secret_key = os.getenv('WRITERS_SECRET_KEY') or secrets.token_hex(32)
 
 CORS(app)
 api.init_app(app)
@@ -124,6 +132,8 @@ api.add_namespace(users)
 # For the frontend:
 ENDPOINTS_READ = {
     'ContributorEditor': '/editor',
+    'WebHome': '/web/',
+    'WebProjects': '/web/projects',
     'Contributors': '/api/contributors',
     'AuthKey': VALID_KEY_W_NS,
     'IsValidUser': SEC_MANAGER_IS_PERMITTED_W_NS,

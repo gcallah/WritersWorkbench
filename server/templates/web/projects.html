@@ -1,0 +1,48 @@
+{% extends "web/base.html" %}
+{% block title %}Projects{% endblock %}
+{% block content %}
+  <h1>Projects <span class="count">{{ projects|length }}</span></h1>
+
+  {# Form for adding a new project. It sends a POST to /web/projects. #}
+  <form class="panel create-form" method="post" action="{{ url_for('web.project_create') }}">
+    <h2>New project</h2>
+    <label for="name">Project name</label>
+    <input id="name" name="name" required maxlength="200">
+    <label for="type">Project type</label>
+    <select id="type" name="type">
+      {% for value, label in type_choices.items() %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="primary" type="submit">Create project</button>
+  </form>
+
+  {% if projects %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Type</th><th>Owner</th><th><span class="sr-only">Actions</span></th></tr>
+        </thead>
+        <tbody>
+          {% for project in projects %}
+            <tr>
+              <td>{{ project.name }}</td>
+              <td>{{ type_choices.get(project.type, project.type) }}</td>
+              <td>{{ project.user }}</td>
+              <td class="actions">
+                <a class="button" href="{{ url_for('web.project_edit', code=project.code) }}">Edit</a>
+                {# confirm() pops up "are you sure?" before deleting. #}
+                <form method="post" action="{{ url_for('web.project_delete', code=project.code) }}"
+                      onsubmit="return confirm('Delete this project? Its files will be kept on disk.');">
+                  <button class="danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">No projects yet. Create one above to get started.</p>
+  {% endif %}
+{% endblock %}

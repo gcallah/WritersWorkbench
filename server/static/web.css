@@ -1,0 +1,37 @@
+/* Colors match the contributor editor (editor.css) so the site feels like one app. */
+:root {
+  --paper: #fff; --ground: #f7f4fc; --ink: #242c29; --muted: #64706b;
+  --line: #dce2df; --accent: #7c5cc4; --accent-light: #efe8fb; --error: #ad3832;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); background: var(--ground); font-family: 'Trebuchet MS', sans-serif; font-size: 15px; }
+a { color: var(--accent); }
+.masthead { padding: 20px 40px; border-bottom: 1px solid var(--line); background: var(--paper); display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; }
+.brand { font-family: Georgia, serif; font-size: 25px; color: var(--ink); text-decoration: none; }
+nav { display: flex; gap: 20px; }
+main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+h1 { font-size: 24px; margin: 0 0 20px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+.count, .empty, .lead { color: var(--muted); }
+.count { font-size: 15px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.card, .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 20px; }
+.card { color: var(--ink); text-decoration: none; }
+.card:hover { border-color: var(--accent); }
+.panel { display: grid; gap: 8px; max-width: 480px; margin-bottom: 28px; }
+label { color: var(--muted); font-size: 13px; }
+input, select, button, .button { font: inherit; border-radius: 4px; }
+input, select { border: 1px solid #b9c5bf; padding: 9px 11px; background: var(--paper); color: var(--ink); }
+button, .button { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 7px 14px; cursor: pointer; text-decoration: none; display: inline-block; }
+.primary { background: var(--accent); border-color: var(--accent); color: #fff; justify-self: start; margin-top: 8px; }
+.danger { color: var(--error); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--line); }
+th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+th { color: var(--muted); font-size: 13px; font-weight: 600; }
+.actions { display: flex; gap: 8px; justify-content: flex-end; }
+.actions form { margin: 0; }
+.flash { padding: 10px 14px; border-radius: 4px; margin: 0 0 16px; }
+.flash-success { background: var(--accent-light); }
+.flash-error { background: #f8e6e4; color: var(--error); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

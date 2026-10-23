@@ -1,0 +1,28 @@
+<!doctype html>
+{# Shared layout: every web page fills in the "title" and "content" blocks. #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %} | Writer's Workbench</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='web.css') }}">
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="{{ url_for('web.home') }}">Writer's Workbench</a>
+    <nav aria-label="Main">
+      <a href="{{ url_for('web.project_list') }}">Projects</a>
+      <a href="{{ url_for('editor.editor_page') }}">Contributor editor</a>
+    </nav>
+  </header>
+  <main>
+    {# Show any messages saved with flash(), like "Created project". #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <p class="flash flash-{{ category }}" role="status">{{ message }}</p>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
