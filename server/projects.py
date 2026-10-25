@@ -87,6 +87,34 @@ class ContributorStore:
             self._write(record_path, json.dumps(record))
         return record
 
+    def save_file(self, contributor_id, piece_type, data, extension):
+        """Save an uploaded document, then mark its piece received."""
+        if piece_type not in PIECE_TYPES:
+            raise ValueError('Unknown piece type.')
+        if (extension not in {'.docx', '.pdf'} or not isinstance(data, bytes)
+                or not data or len(data) > materials.MAX_FILE_BYTES):
+            raise ValueError('Provide a Word or PDF file of at most 10 MB.')
+        with _LOCK:
+            directory = self._directory(contributor_id)
+            record_path = directory / 'contributor.json'
+            record = json.loads(record_path.read_text(encoding='utf-8'))
+            self._write_bytes(directory / f'{piece_type}{extension}', data)
+            record[PIECE_TYPES[piece_type]] = True
+            self._write(record_path, json.dumps(record))
+        return record
+
+    @staticmethod
+    def _write_bytes(path, data):
+        temporary = None
+        try:
+            with NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(data)
+            temporary.replace(path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
 
 class ProjectContributorStore:
     """Use the same editor interface for contributors belonging to a book."""
@@ -108,3 +136,7 @@ class ProjectContributorStore:
     def save_piece(self, contributor_id, piece_type, text):
         return materials.save_text(self.project_code, contributor_id,
                                    piece_type, text)
+
+    def save_file(self, contributor_id, piece_type, data, extension):
+        return materials.save_file(self.project_code, contributor_id,
+                                   piece_type, data, extension)

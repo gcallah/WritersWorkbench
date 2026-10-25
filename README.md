@@ -76,8 +76,9 @@ Actual materials live on disk, for example:
 - `instance/projects/<project-code>/chapters/<contributor-id>.txt`
 
 The editor's existing `submission` means chapter text for an edited volume.
-It still edits plain text, not Word or PDF documents. The existing `Bio` and
-`Submission` flag names are preserved. The database also tracks `Abstract`,
+The editor accepts plain text plus `.docx` and `.pdf` uploads for biography
+and submission pieces. Uploaded documents are stored without conversion. The
+existing `Bio` and `Submission` flag names are preserved. The database also tracks `Abstract`,
 `Address`, `Keywords`, and `Permission`. A flag becomes true only after that
 item is saved successfully. Empty template folders do not mark items received.
 
@@ -85,10 +86,10 @@ The existing contributor endpoints accept `?project=<project-code>` to select
 a book. `/api/editor/projects` lists the edited volumes for the authenticated
 shared editor. The piece API also accepts `abstract`, `address`, `keywords`, and
 `permission` as plain-text piece types for project-scoped requests.
-For scripts handling actual documents, `projects.materials.save_file` accepts
-bytes and one of `.txt`, `.md`, `.docx`, or `.pdf` (up to 10 MB). It stores those
-bytes without converting or executing them. The browser's two existing text
-tabs have not been expanded into a document-upload interface.
+`projects.materials.save_file` accepts bytes and one of `.txt`, `.md`, `.docx`,
+or `.pdf` (up to 10 MB). The editor's document upload accepts `.docx` and
+`.pdf` files up to 10 MB, and stores those bytes without converting or
+executing them.
 
 **Existing data:** select **Unassigned contributors (existing data)** to keep
 using the original file-backed editor records. Requests without a project

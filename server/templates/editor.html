@@ -63,6 +63,15 @@
           <label id="piece-label" for="piece-text">Biography</label>
           <span id="character-count">0 / 100,000</span>
         </div>
+        <div class="upload-bar">
+          <label class="file-picker" for="document-file">
+            <i data-lucide="file-up" aria-hidden="true"></i>
+            <span id="file-name">Choose Word or PDF</span>
+          </label>
+          <input id="document-file" type="file" accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled>
+          <button id="upload-document" class="secondary" type="button" disabled>Upload document</button>
+          <span class="upload-limit">DOCX or PDF, up to 10 MB</span>
+        </div>
         <textarea id="piece-text" maxlength="100000" spellcheck="true" disabled></textarea>
         <footer class="save-bar">
           <p id="save-status" role="status" aria-live="polite">No contributor selected</p>

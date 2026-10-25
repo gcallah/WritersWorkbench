@@ -53,6 +53,11 @@ h2 { font-family: Georgia, serif; font-size: 29px; font-weight: 400; margin: 0; 
 .document-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
 .document-heading label { font-size: 12px; font-weight: 600; }
 #character-count { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.upload-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; }
+#document-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.file-picker { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--paper); cursor: pointer; overflow-wrap: anywhere; }
+.file-picker svg { width: 16px; height: 16px; flex: 0 0 auto; color: var(--accent); }
+.upload-limit { color: var(--muted); font-size: 11px; }
 textarea { display: block; width: 100%; min-height: 390px; height: max(390px, calc(100vh - 410px)); padding: 28px; resize: vertical; color: var(--ink); background: var(--paper); border: 1px solid #cbd5cf; border-top: 3px solid #cbd5cf; border-radius: 3px; font-family: Georgia, serif; font-size: 18px; line-height: 1.8; }
 textarea:disabled { background: #eef1ef; }
 .save-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; }

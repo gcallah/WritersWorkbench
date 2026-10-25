@@ -68,19 +68,31 @@ function pieceDirty() {
   return selected !== null && text.value !== savedText;
 }
 
+function documentPending() {
+  return byId('document-file').files.length > 0;
+}
+
 function dirty() {
-  return pieceDirty() || requirementsDirty();
+  return pieceDirty() || documentPending() || requirementsDirty();
 }
 
 function allowDiscard(includeRequirements = false) {
-  const unsaved = pieceDirty() || (includeRequirements && requirementsDirty());
+  const unsaved = pieceDirty() || documentPending() ||
+    (includeRequirements && requirementsDirty());
   return !unsaved || confirm('Discard unsaved changes?');
+}
+
+function clearDocumentUpload() {
+  byId('document-file').value = '';
+  byId('file-name').textContent = 'Choose Word or PDF';
 }
 
 function updateControls() {
   byId('project-select').disabled = busy || creating || !projectsAvailable;
   text.disabled = busy || selected === null;
   byId('save').disabled = busy || !pieceDirty() || !text.value.trim();
+  byId('document-file').disabled = busy || selected === null;
+  byId('upload-document').disabled = busy || selected === null || !byId('document-file').files.length;
   byId('requirements-form').hidden = !projectCode;
   byId('requirements-fields').disabled = busy || creating || savedRequirements === null;
   byId('requirements-save').disabled = busy || creating || !requirementsDirty();
@@ -123,6 +135,7 @@ function renderReceipt() {
 
 async function loadPiece(record, type) {
   busy = true;
+  clearDocumentUpload();
   updateControls();
   status('Loading...');
   try {
@@ -194,6 +207,38 @@ byId('save').addEventListener('click', async () => {
   }
 });
 
+byId('document-file').addEventListener('change', () => {
+  const file = byId('document-file').files[0];
+  byId('file-name').textContent = file?.name || 'Choose Word or PDF';
+  updateControls();
+});
+byId('upload-document').addEventListener('click', async () => {
+  const file = byId('document-file').files[0];
+  if (busy || !selected || !file) return;
+  busy = true;
+  updateControls();
+  status('Uploading document...');
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const record = await api(`/api/contributors/${selected.id}/pieces/${pieceType}/document`, {
+      method: 'POST', body: form,
+    });
+    selected = record;
+    contributors = contributors.map((entry) => entry.id === record.id ? record : entry);
+    byId('document-file').value = '';
+    byId('file-name').textContent = 'Choose Word or PDF';
+    renderContributors();
+    renderReceipt();
+    status(`${labels[pieceType]} document uploaded`);
+  } catch (error) {
+    status(error.message, true);
+  } finally {
+    busy = false;
+    updateControls();
+  }
+});
+
 byId('add').addEventListener('click', () => {
   if (!allowDiscard()) return;
   byId('add-form').reset();
@@ -252,6 +297,7 @@ byId('project-select').addEventListener('change', async () => {
     return;
   }
   projectCode = selector.value;
+  clearDocumentUpload();
   savedRequirements = null;
   selected = null;
   contributors = [];

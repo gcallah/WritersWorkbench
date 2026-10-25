@@ -1,5 +1,6 @@
 """Authenticated contributor editor and JSON endpoints."""
 from secrets import compare_digest
+from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
@@ -9,6 +10,7 @@ from projects import query as projects_query
 
 
 editor = Blueprint('editor', __name__, template_folder='templates')
+MAX_UPLOAD_BYTES = 10_000_000
 
 
 def _store():
@@ -38,9 +40,15 @@ def require_editor():
         origin = request.headers.get('Origin')
         if origin and origin != request.host_url.rstrip('/'):
             return jsonify(error='Cross-origin writes are not allowed.'), 403
-        if request.content_length and request.content_length > 2_000_000:
+        is_document_upload = request.endpoint == 'editor.upload_piece'
+        max_request_size = MAX_UPLOAD_BYTES + 100_000
+        if (request.content_length and request.content_length >
+                (max_request_size if is_document_upload else 2_000_000)):
             return jsonify(error='Request is too large.'), 413
-        if not request.is_json:
+        if is_document_upload:
+            if not request.mimetype.startswith('multipart/'):
+                return jsonify(error='Send a multipart document upload.'), 415
+        elif not request.is_json:
             return jsonify(error='Send a JSON object.'), 415
     return None
 
@@ -116,6 +124,22 @@ def save_piece(contributor_id, piece_type):
     record = _store().save_piece(contributor_id, piece_type,
                                  _payload().get('text'))
     return jsonify(record)
+
+
+@editor.post('/api/contributors/<contributor_id>/pieces/<piece_type>/document')
+def upload_piece(contributor_id, piece_type):
+    """Save a Word or PDF document for a contributor piece."""
+    uploaded = request.files.get('file')
+    if uploaded is None or not uploaded.filename:
+        raise ValueError('Choose a Word or PDF document.')
+    extension = Path(uploaded.filename).suffix.lower()
+    if extension not in {'.docx', '.pdf'}:
+        raise ValueError('Choose a .docx or .pdf document.')
+    data = uploaded.stream.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ValueError('Documents must be at most 10 MB.')
+    return jsonify(_store().save_file(contributor_id, piece_type, data,
+                                      extension))
 
 
 @editor.get('/api/editor/projects')

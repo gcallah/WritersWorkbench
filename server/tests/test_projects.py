@@ -1,11 +1,14 @@
 """Contributor storage and editor workflow tests."""
 import json
+import os
 from base64 import b64encode
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
 
-from server.projects import ContributorStore
+from projects import query as projects_query
+from server.projects import ContributorStore, ProjectContributorStore
 from server.endpoints import app
 
 
@@ -98,6 +101,59 @@ def test_replace_bio_preserves_unicode_and_other_contributors(
     assert contributor_store.get_piece(other['id'], 'bio') == ''
 
 
+@patch('server.projects.contributors.require_volume', autospec=True)
+@patch('server.projects.contributors.fetch_list', autospec=True)
+def test_project_store_lists_contributors(mock_fetch, mock_require_volume):
+    records = [{'id': 'a' * 32, 'name': 'Ada'}]
+    mock_fetch.return_value = records
+
+    result = ProjectContributorStore('b' * 32).list_contributors()
+
+    assert result == records
+    mock_require_volume.assert_called_once_with('b' * 32)
+    mock_fetch.assert_called_once_with('b' * 32)
+
+
+@patch('server.projects.contributors.require_volume', autospec=True)
+@patch('server.projects.contributors.add', autospec=True)
+def test_project_store_adds_contributor(mock_add, mock_require_volume):
+    record = {'id': 'a' * 32, 'name': 'Ada'}
+    mock_add.return_value = record
+
+    result = ProjectContributorStore('b' * 32).add_contributor('Ada')
+
+    assert result == record
+    mock_require_volume.assert_called_once_with('b' * 32)
+    mock_add.assert_called_once_with('b' * 32, 'Ada')
+
+
+@patch('server.projects.contributors.require_volume', autospec=True)
+@patch('server.projects.materials.read_text', autospec=True)
+def test_project_store_reads_piece(mock_read, mock_require_volume):
+    mock_read.return_value = 'Biography text'
+
+    result = ProjectContributorStore('b' * 32).get_piece('a' * 32, 'bio')
+
+    assert result == 'Biography text'
+    mock_require_volume.assert_called_once_with('b' * 32)
+    mock_read.assert_called_once_with('b' * 32, 'a' * 32, 'bio')
+
+
+@patch('server.projects.contributors.require_volume', autospec=True)
+@patch('server.projects.materials.save_text', autospec=True)
+def test_project_store_saves_piece(mock_save, mock_require_volume):
+    record = {'id': 'a' * 32, 'Bio': True}
+    mock_save.return_value = record
+
+    result = ProjectContributorStore('b' * 32).save_piece(
+        'a' * 32, 'bio', 'Biography text')
+
+    assert result == record
+    mock_require_volume.assert_called_once_with('b' * 32)
+    mock_save.assert_called_once_with(
+        'b' * 32, 'a' * 32, 'bio', 'Biography text')
+
+
 @pytest.fixture
 def editor_client(tmp_path, monkeypatch):
     monkeypatch.setitem(app.config, 'CONTRIBUTOR_DATA_DIR', tmp_path)
@@ -121,6 +177,53 @@ def test_editor_api_saves_bio(editor_client, tmp_path):
     records = editor_client.get('/api/contributors').get_json()['contributors']
     assert records == [response.get_json()]
     assert (tmp_path / contributor['id'] / 'bio.txt').exists()
+
+
+@pytest.mark.parametrize(('filename', 'data'), [
+    ('bio.docx', b'PK\x03\x04word document'),
+    ('bio.pdf', b'%PDF-1.7 document'),
+])
+def test_editor_uploads_documents(editor_client, tmp_path, filename, data):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    contributor = created.get_json()
+    url = f"/api/contributors/{contributor['id']}/pieces/bio/document"
+
+    response = editor_client.post(
+        url, data={'file': (BytesIO(data), filename)},
+        content_type='multipart/form-data')
+
+    assert response.status_code == 200
+    assert response.get_json()['Bio'] is True
+    assert (tmp_path / contributor['id'] / filename).read_bytes() == data
+
+
+def test_editor_upload_uses_project_material_store(editor_client):
+    record = {'id': 'a' * 32, 'Bio': True}
+    with patch('server.editor.ProjectContributorStore') as project_store:
+        project_store.return_value.save_file.return_value = record
+        response = editor_client.post(
+            f"/api/contributors/{record['id']}/pieces/bio/document"
+            '?project=book-code',
+            data={'file': (BytesIO(b'%PDF-1.7 document'), 'bio.pdf')},
+            content_type='multipart/form-data')
+
+    assert response.status_code == 200
+    project_store.assert_called_once_with('book-code')
+    project_store.return_value.save_file.assert_called_once_with(
+        record['id'], 'bio', b'%PDF-1.7 document', '.pdf')
+
+
+@pytest.mark.parametrize('filename', ['bio.txt', 'bio.exe', ''])
+def test_editor_rejects_unsupported_or_missing_document(editor_client,
+                                                         filename):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    url = f"/api/contributors/{created.get_json()['id']}/pieces/bio/document"
+    data = {'file': (BytesIO(b'data'), filename)} if filename else {}
+
+    response = editor_client.post(url, data=data,
+                                  content_type='multipart/form-data')
+
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize('url', ['/editor', '/api/contributors'])
@@ -201,6 +304,10 @@ def edited_books():
         query.delete(code)
 
 
+@pytest.mark.skipif(
+    os.getenv('RUN_BACKEND_INTEGRATION_TESTS') != '1',
+    reason='Requires the configured BackEndCore/MongoDB database.',
+)
 def test_editor_project_selection_and_isolation(editor_client, edited_books):
     from projects.storage import project_directory
 
@@ -234,10 +341,54 @@ def test_editor_project_selection_and_isolation(editor_client, edited_books):
     assert b'id="project-select"' in editor_client.get('/editor').data
 
 
-def test_unknown_project_does_not_fall_back_to_legacy(editor_client):
+@patch('server.editor.ProjectContributorStore', autospec=True)
+def test_project_query_uses_project_contributor_store(
+        mock_project_store, editor_client):
+    records = [{'id': 'a' * 32, 'name': 'Ada'}]
+    mock_project_store.return_value.list_contributors.return_value = records
+
+    response = editor_client.get(
+        '/api/contributors', query_string={'project': 'b' * 32})
+
+    assert response.status_code == 200
+    assert response.json == {'contributors': records}
+    mock_project_store.assert_called_once_with('b' * 32)
+    mock_project_store.return_value.list_contributors.assert_called_once_with()
+
+
+@patch('server.editor.ProjectContributorStore', autospec=True)
+def test_project_list_filters_and_sorts_edited_volumes(
+        mock_project_store, editor_client):
+    mock_project_store.side_effect = AssertionError(
+        'Listing volumes should not create a contributor store.')
+    projects = [
+        {projects_query.CODE: 'a', projects_query.NAME: 'zeta',
+         projects_query.TYPE: projects_query.COLLECTION},
+        {projects_query.CODE: 'b', projects_query.NAME: 'Essay',
+         projects_query.TYPE: projects_query.ESSAY},
+        {projects_query.CODE: 'c', projects_query.NAME: 'Alpha',
+         projects_query.TYPE: projects_query.COLLECTION},
+    ]
+
+    with patch('server.editor.projects_query.fetch_list',
+               autospec=True, return_value=projects) as mock_fetch:
+        response = editor_client.get('/api/editor/projects')
+
+    assert response.status_code == 200
+    assert [project[projects_query.CODE]
+            for project in response.json['projects']] == ['c', 'a']
+    mock_fetch.assert_called_once_with()
+    mock_project_store.assert_not_called()
+
+
+@patch('server.editor.ProjectContributorStore', autospec=True,
+       side_effect=KeyError('Project not found.'))
+def test_unknown_project_does_not_fall_back_to_legacy(
+        mock_project_store, editor_client):
     response = editor_client.post('/api/contributors?project=missing',
                                   json={'name': 'Ada'})
     assert response.status_code == 404
+    mock_project_store.assert_called_once_with('missing')
     assert editor_client.get('/api/contributors').json == {'contributors': []}
 
 
