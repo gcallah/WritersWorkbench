@@ -65,11 +65,14 @@ Choose a book in the new **Project** selector at `/editor`, then use the existin
 Add contributor, Biography, and Submission controls. The selector lists existing
 edited volumes; create books using the existing Projects API or Python data
 module. The editor remains protected by the existing shared editor credentials.
-This change does not add per-user login or change the project's security model.
+The Submission tab asks whether each paper has a referee. This change does not
+add per-user login or change the project's security model.
 
 Contributor IDs, names, project codes, and received-item flags live in the
 `ProjectContributors` collection through BackEndCore, using the same database
-configuration as projects. The local scripts and makefile select SQLite.
+configuration as projects. The per-paper `HasReferee` answer is `null` until
+answered, then stored as `true` or `false`. The local scripts and makefile
+select SQLite.
 Actual materials live on disk, for example:
 
 - `instance/projects/<project-code>/bios/<contributor-id>.txt`

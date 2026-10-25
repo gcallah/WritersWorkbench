@@ -111,3 +111,12 @@ dialog label { display: block; margin-bottom: 8px; font-size: 12px; }
 .project-requirements label { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; }
 .project-requirements input[type="checkbox"] { width: auto; flex: 0 0 auto; margin: 2px 0 0; accent-color: var(--accent); }
 .project-requirements p { font-size: 12px; line-height: 1.5; }
+.referee-form { margin: 0 0 20px; }
+.referee-form > label { display: block; margin-bottom: 8px; font-weight: 600; }
+.referee-control { display: flex; gap: 10px; align-items: center; }
+.referee-control select { min-width: 180px; padding: 10px; border: 1px solid #b9c5bf; border-radius: 4px; background: var(--paper); color: var(--ink); font: inherit; }
+.referee-form p { min-height: 1em; margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+@media (max-width: 560px) {
+  .referee-control { align-items: stretch; flex-wrap: wrap; }
+  .referee-control select { flex: 1 1 160px; }
+}

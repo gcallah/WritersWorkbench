@@ -68,16 +68,26 @@ function pieceDirty() {
   return selected !== null && text.value !== savedText;
 }
 
+function refereeAnswer() {
+  const value = byId('has-referee').value;
+  return value === 'yes' ? true : value === 'no' ? false : null;
+}
+
+function refereeDirty() {
+  return selected !== null && pieceType === 'submission' &&
+    refereeAnswer() !== (selected.HasReferee ?? null);
+}
+
 function documentPending() {
   return byId('document-file').files.length > 0;
 }
 
 function dirty() {
-  return pieceDirty() || documentPending() || requirementsDirty();
+  return pieceDirty() || refereeDirty() || documentPending() || requirementsDirty();
 }
 
 function allowDiscard(includeRequirements = false) {
-  const unsaved = pieceDirty() || documentPending() ||
+  const unsaved = pieceDirty() || refereeDirty() || documentPending() ||
     (includeRequirements && requirementsDirty());
   return !unsaved || confirm('Discard unsaved changes?');
 }
@@ -93,6 +103,9 @@ function updateControls() {
   byId('save').disabled = busy || !pieceDirty() || !text.value.trim();
   byId('document-file').disabled = busy || selected === null;
   byId('upload-document').disabled = busy || selected === null || !byId('document-file').files.length;
+  byId('referee-form').hidden = selected === null || pieceType !== 'submission';
+  byId('has-referee').disabled = busy || selected === null;
+  byId('save-referee').disabled = busy || !refereeDirty();
   byId('requirements-form').hidden = !projectCode;
   byId('requirements-fields').disabled = busy || creating || savedRequirements === null;
   byId('requirements-save').disabled = busy || creating || !requirementsDirty();
@@ -144,6 +157,10 @@ async function loadPiece(record, type) {
     pieceType = type;
     savedText = data.text;
     text.value = savedText;
+    byId('has-referee').value = record.HasReferee === true ? 'yes' :
+      record.HasReferee === false ? 'no' : '';
+    byId('referee-status').textContent = record.HasReferee === null ||
+      record.HasReferee === undefined ? 'No answer saved' : 'Answer saved';
     byId('contributor-name').textContent = record.name;
     byId('piece-label').textContent = labels[type];
     byId('piece-panel').setAttribute('aria-labelledby', `${type}-tab`);
@@ -201,6 +218,33 @@ byId('save').addEventListener('click', async () => {
     status(`${labels[pieceType]} saved`);
   } catch (error) {
     status(error.message, true);
+  } finally {
+    busy = false;
+    updateControls();
+  }
+});
+
+byId('has-referee').addEventListener('change', () => {
+  byId('referee-status').textContent = refereeDirty() ?
+    'Unsaved answer' : 'Answer saved';
+  updateControls();
+});
+byId('referee-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (busy || !selected || !refereeDirty()) return;
+  busy = true;
+  updateControls();
+  byId('referee-status').textContent = 'Saving answer...';
+  try {
+    const record = await api(`/api/contributors/${selected.id}/referee`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ has_referee: refereeAnswer() }),
+    });
+    selected = record;
+    contributors = contributors.map((entry) => entry.id === record.id ? record : entry);
+    byId('referee-status').textContent = 'Answer saved';
+  } catch (error) {
+    byId('referee-status').textContent = error.message;
   } finally {
     busy = false;
     updateControls();

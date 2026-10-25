@@ -97,6 +97,21 @@ def test_requirements_preserve_received_bio_and_file(client, books):
         qry.get_cache(contributors.COLLECT).delete(person['id'])
 
 
+def test_referee_answer_is_saved_per_paper(client, books):
+    from projects import contributors
+    code = books[0]
+    person = contributors.add(code, 'Test Author')
+    url = f"/api/contributors/{person['id']}/referee?project={code}"
+    try:
+        response = client.post(url, json={'has_referee': True})
+        assert response.status_code == 200
+        assert response.json['HasReferee'] is True
+        qry.get_cache(contributors.COLLECT).clear_cache()
+        assert contributors.fetch(code, person['id'])[
+            contributors.HAS_REFEREE] is True
+    finally:
+        qry.get_cache(contributors.COLLECT).delete(person['id'])
+
 def test_existing_projects_api_accepts_requirements(client, books):
     from server import endpoints as ep
     headers = {ep.AUTH_KEY: 'test-key'}

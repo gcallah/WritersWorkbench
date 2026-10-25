@@ -46,6 +46,8 @@ class ContributorStore:
         with _LOCK:
             records = [json.loads(path.read_text(encoding='utf-8'))
                        for path in self.root.glob('*/contributor.json')]
+        for record in records:
+            record.setdefault('HasReferee', None)
         return sorted(records, key=lambda record: record['name'].casefold())
 
     def add_contributor(self, name):
@@ -54,7 +56,7 @@ class ContributorStore:
             raise ValueError(
                 'Enter a contributor name of 1 to 200 characters.')
         record = {'id': uuid4().hex, 'name': name.strip(),
-                  'Bio': False, 'Submission': False}
+                  'Bio': False, 'Submission': False, 'HasReferee': None}
         with _LOCK:
             directory = self.root / record['id']
             directory.mkdir(parents=True)
@@ -103,6 +105,18 @@ class ContributorStore:
             self._write(record_path, json.dumps(record))
         return record
 
+    def set_referee(self, contributor_id, has_referee):
+        """Save whether the contributor's paper has a referee."""
+        if type(has_referee) is not bool:
+            raise ValueError('Referee answer must be true or false.')
+        with _LOCK:
+            directory = self._directory(contributor_id)
+            record_path = directory / 'contributor.json'
+            record = json.loads(record_path.read_text(encoding='utf-8'))
+            record['HasReferee'] = has_referee
+            self._write(record_path, json.dumps(record))
+        return record
+
     @staticmethod
     def _write_bytes(path, data):
         temporary = None
@@ -140,3 +154,7 @@ class ProjectContributorStore:
     def save_file(self, contributor_id, piece_type, data, extension):
         return materials.save_file(self.project_code, contributor_id,
                                    piece_type, data, extension)
+
+    def set_referee(self, contributor_id, has_referee):
+        return contributors.set_referee(self.project_code, contributor_id,
+                                        has_referee)

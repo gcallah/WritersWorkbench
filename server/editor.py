@@ -126,6 +126,15 @@ def save_piece(contributor_id, piece_type):
     return jsonify(record)
 
 
+@editor.post('/api/contributors/<contributor_id>/referee')
+def save_referee(contributor_id):
+    """Save whether this contributor's paper has a referee."""
+    answer = _payload().get('has_referee')
+    if type(answer) is not bool:
+        raise ValueError('Send has_referee as true or false.')
+    return jsonify(_store().set_referee(contributor_id, answer))
+
+
 @editor.post('/api/contributors/<contributor_id>/pieces/<piece_type>/document')
 def upload_piece(contributor_id, piece_type):
     """Save a Word or PDF document for a contributor piece."""

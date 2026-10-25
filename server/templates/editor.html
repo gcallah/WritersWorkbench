@@ -59,6 +59,18 @@
         <button id="submission-tab" role="tab" aria-selected="false" aria-controls="piece-panel" data-type="submission" tabindex="-1" disabled>Submission</button>
       </div>
       <div id="piece-panel" class="piece-panel" role="tabpanel" aria-labelledby="bio-tab">
+        <form id="referee-form" class="referee-form" hidden>
+          <label for="has-referee">Does this paper have a referee?</label>
+          <div class="referee-control">
+            <select id="has-referee" disabled>
+              <option value="">Choose an answer</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+            <button id="save-referee" class="secondary" type="submit" disabled>Save answer</button>
+          </div>
+          <p id="referee-status" role="status" aria-live="polite"></p>
+        </form>
         <div class="document-heading">
           <label id="piece-label" for="piece-text">Biography</label>
           <span id="character-count">0 / 100,000</span>

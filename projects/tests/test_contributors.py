@@ -65,3 +65,27 @@ def test_receipt_changes_only_selected_item(volume):
     assert record['Submission'] is False
     with pytest.raises(ValueError):
         people.mark_received(volume, person['id'], 'unknown')
+
+
+def test_referee_answer_persists_and_is_project_scoped(volume):
+    person = people.add(volume, 'Ada')
+    assert person[people.HAS_REFEREE] is None
+    assert people.set_referee(volume, person['id'], True)[
+        people.HAS_REFEREE] is True
+    get_cache(people.COLLECT).clear_cache()
+    assert people.fetch(volume, person['id'])[people.HAS_REFEREE] is True
+
+    other = query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION})
+    try:
+        with pytest.raises(KeyError):
+            people.set_referee(other, person['id'], False)
+        assert people.fetch(volume, person['id'])[people.HAS_REFEREE] is True
+    finally:
+        query.delete(other)
+
+
+@pytest.mark.parametrize('answer', [None, 0, 1, 'yes'])
+def test_referee_answer_must_be_boolean(volume, answer):
+    person = people.add(volume, 'Ada')
+    with pytest.raises(ValueError, match='Referee answer'):
+        people.set_referee(volume, person['id'], answer)

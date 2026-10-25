@@ -45,6 +45,23 @@ def test_submission_does_not_mark_bio_received(contributor_store, contributor):
     assert result['Bio'] is False
 
 
+def test_referee_answer_is_nullable_and_persisted(contributor_store,
+                                                  contributor, tmp_path):
+    assert contributor['HasReferee'] is None
+    result = contributor_store.set_referee(contributor['id'], False)
+    assert result['HasReferee'] is False
+    assert contributor_store.list_contributors() == [result]
+    saved = json.loads((tmp_path / contributor['id'] /
+                        'contributor.json').read_text())
+    assert saved['HasReferee'] is False
+
+
+def test_referee_answer_rejects_non_boolean(contributor_store, contributor):
+    with pytest.raises(ValueError, match='Referee answer'):
+        contributor_store.set_referee(contributor['id'], 1)
+    assert contributor_store.list_contributors() == [contributor]
+
+
 @pytest.mark.parametrize('contributor_id', ['../outside', '/etc', 'missing'])
 def test_rejects_unsafe_ids(contributor_store, contributor_id):
     with pytest.raises(ValueError):
@@ -177,6 +194,27 @@ def test_editor_api_saves_bio(editor_client, tmp_path):
     records = editor_client.get('/api/contributors').get_json()['contributors']
     assert records == [response.get_json()]
     assert (tmp_path / contributor['id'] / 'bio.txt').exists()
+
+
+def test_editor_api_saves_referee_answer(editor_client):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    contributor = created.get_json()
+    url = f"/api/contributors/{contributor['id']}/referee"
+
+    response = editor_client.post(url, json={'has_referee': True})
+
+    assert response.status_code == 200
+    assert response.get_json()['HasReferee'] is True
+    assert editor_client.get('/api/contributors').get_json()[
+        'contributors'][0]['HasReferee'] is True
+
+
+@pytest.mark.parametrize('answer', [None, 0, 'yes'])
+def test_editor_api_rejects_invalid_referee_answer(editor_client, answer):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    url = f"/api/contributors/{created.get_json()['id']}/referee"
+    response = editor_client.post(url, json={'has_referee': answer})
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize(('filename', 'data'), [
