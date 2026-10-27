@@ -24,7 +24,7 @@ def needs_authors_cache(fn):
     return needs_cache(fn, COLLECT, query.DB, COLLECT, key_fld=ID)
 
 
-def _check_name(name):
+def check_name(name):
     if (not isinstance(name, str) or not name.strip()
             or len(name) > MAX_NAME_LEN):
         raise ValueError(f'Author {NAME} must be 1 to {MAX_NAME_LEN} '
@@ -40,7 +40,7 @@ def add(name):
     """
     Create an author with this name; returns the new author's id.
     """
-    _check_name(name)
+    check_name(name)
     author_id = uuid4().hex
     get_cache(COLLECT).add({ID: author_id, NAME: name.strip()})
     return author_id
@@ -67,7 +67,7 @@ def fetch_by_name(name):
     """
     Get all authors with this exact name: returns a dict keyed by id.
     """
-    _check_name(name)
+    check_name(name)
     return get_cache(COLLECT).fetch_by_fld_val(NAME, name.strip())
 
 
@@ -76,7 +76,7 @@ def update(author_id, name):
     """
     Rename the author with this id.
     """
-    _check_name(name)
+    check_name(name)
     if not is_valid(author_id):
         raise ValueError(f'No author with {ID} {author_id}')
     return get_cache(COLLECT).update(author_id, {NAME: name.strip()})
@@ -86,6 +86,9 @@ def update(author_id, name):
 def delete(author_id):
     if not is_valid(author_id):
         raise ValueError(f'No author with {ID} {author_id}')
+    # Imported here: author_project imports this module.
+    from projects import author_project
+    author_project.delete_author_links(author_id)
     return get_cache(COLLECT).delete(author_id)
 
 

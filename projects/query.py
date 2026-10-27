@@ -182,6 +182,9 @@ def update(code, update_dict: dict):
 
 @needs_projects_cache
 def delete(code):
+    # Imported here: author_project imports this module.
+    from projects import author_project
+    author_project.delete_project_links(code)
     return get_cache(COLLECT).delete(code)
 
 
