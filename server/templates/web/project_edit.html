@@ -1,0 +1,17 @@
+{% extends "web/base.html" %}
+{% block title %}Edit {{ project.name }}{% endblock %}
+{% block content %}
+  <p><a href="{{ url_for('web.project_list') }}">&larr; Back to projects</a></p>
+  <h1>Edit project</h1>
+  <form class="panel" method="post" action="{{ url_for('web.project_update', code=project.code) }}">
+    <label for="name">Project name</label>
+    <input id="name" name="name" required maxlength="200" value="{{ project.name }}">
+    <label for="type">Project type</label>
+    <select id="type" name="type">
+      {% for value, label in type_choices.items() %}
+        <option value="{{ value }}" {% if value == project.type %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button class="primary" type="submit">Save changes</button>
+  </form>
+{% endblock %}
