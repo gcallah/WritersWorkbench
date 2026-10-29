@@ -46,7 +46,7 @@ input { min-width: 0; width: 100%; border: 1px solid #b9c5bf; background: var(--
 h2 { font-family: Georgia, serif; font-size: 29px; font-weight: 400; margin: 0; overflow-wrap: anywhere; }
 .receipt { font-size: 12px; color: var(--warning); white-space: nowrap; background: #fff4db; padding: 7px 10px; border-radius: 3px; }
 .receipt.received { color: var(--accent); background: var(--accent-light); }
-.piece-tabs { display: flex; gap: 24px; margin-top: 30px; border-bottom: 1px solid var(--line); }
+.piece-tabs { display: flex; flex-wrap: wrap; gap: 4px 24px; margin-top: 30px; border-bottom: 1px solid var(--line); }
 .piece-tabs button { color: var(--muted); background: transparent; border: 0; border-radius: 0; border-bottom: 2px solid transparent; min-height: 45px; padding: 10px 0; }
 .piece-tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
 .piece-panel { margin-top: 26px; }

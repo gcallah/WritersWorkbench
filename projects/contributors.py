@@ -19,6 +19,7 @@ PIECES = {
     'address': ('addresses', 'Address'),
     'keywords': ('keywords', 'Keywords'),
     'permission': ('permissions', 'Permission'),
+    'referee_report': ('referee_reports', 'RefereeReport'),
 }
 
 
