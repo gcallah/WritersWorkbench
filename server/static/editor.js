@@ -3,8 +3,27 @@
 const byId = (id) => document.getElementById(id);
 const text = byId('piece-text');
 const tabs = [...document.querySelectorAll('[data-type]')];
-const labels = { bio: 'Biography', submission: 'Submission' };
-const flags = { bio: 'Bio', submission: 'Submission' };
+const labels = {
+  bio: 'Biography', submission: 'Submission', abstract: 'Abstract',
+  address: 'Address', keywords: 'Keywords', permission: 'Permission',
+  referee_report: 'Referee report',
+};
+const flags = {
+  bio: 'Bio', submission: 'Submission', abstract: 'Abstract',
+  address: 'Address', keywords: 'Keywords', permission: 'Permission',
+  referee_report: 'RefereeReport',
+};
+const placeholders = {
+  bio: 'Paste the contributor\'s biography here.',
+  submission: 'Paste the chapter or paper text here.',
+  abstract: 'Paste the abstract here.',
+  address: 'Paste the contributor\'s mailing address here.',
+  keywords: 'Paste the keywords here.',
+  permission: 'Paste the permission-to-publish statement here.',
+  referee_report: 'Paste the referee report here.',
+};
+// These pieces need a project folder, so they are hidden for unassigned contributors.
+const visibleTabs = () => tabs.filter((tab) => !tab.hidden);
 let contributors = [];
 let selected = null;
 let pieceType = 'bio';
@@ -110,7 +129,10 @@ function updateControls() {
   byId('requirements-fields').disabled = busy || creating || savedRequirements === null;
   byId('requirements-save').disabled = busy || creating || !requirementsDirty();
   byId('add').disabled = busy;
-  tabs.forEach((tab) => { tab.disabled = busy || selected === null; });
+  tabs.forEach((tab) => {
+    if ('projectOnly' in tab.dataset) tab.hidden = !projectCode;
+    tab.disabled = busy || selected === null;
+  });
   byId('character-count').textContent = `${text.value.length.toLocaleString()} / 100,000`;
 }
 
@@ -163,6 +185,7 @@ async function loadPiece(record, type) {
       record.HasReferee === undefined ? 'No answer saved' : 'Answer saved';
     byId('contributor-name').textContent = record.name;
     byId('piece-label').textContent = labels[type];
+    text.placeholder = placeholders[type];
     byId('piece-panel').setAttribute('aria-labelledby', `${type}-tab`);
     tabs.forEach((tab) => {
       const active = tab.dataset.type === type;
@@ -189,7 +212,11 @@ tabs.forEach((tab, index) => {
   tab.addEventListener('keydown', (event) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    const target = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs.at(-1) : tabs[1 - index];
+    const shown = visibleTabs();
+    const position = shown.indexOf(tab);
+    const target = event.key === 'Home' ? shown[0] :
+      event.key === 'End' ? shown.at(-1) :
+      shown[(position + (event.key === 'ArrowRight' ? 1 : -1) + shown.length) % shown.length];
     target.focus();
     target.click();
   });

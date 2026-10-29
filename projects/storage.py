@@ -6,7 +6,7 @@ import re
 
 VOLUME_FOLDERS = (
     'abstracts', 'addresses', 'bios', 'chapters', 'keywords',
-    'permissions', 'drafts', 'Proposal',
+    'permissions', 'referee_reports', 'drafts', 'Proposal',
 )
 
 
