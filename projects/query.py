@@ -48,11 +48,13 @@ def _with_requirements(project):
 SOLO_BOOK = 'solo_book'
 COLLECTION = 'collection'
 ESSAY = 'essay'
+JOURNAL_ISSUE = 'journal_issue'
 
 PROJECT_TYPES = {
     SOLO_BOOK: {cflds.DESCR: 'Solo Book'},
     COLLECTION: {cflds.DESCR: 'Edited volume (multi-author)'},
     ESSAY: {cflds.DESCR: 'Essay'},
+    JOURNAL_ISSUE: {cflds.DESCR: 'Journal Issue'},
 }
 
 FIELDS = {
