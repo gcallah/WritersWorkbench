@@ -2,6 +2,11 @@
 
 Our intention here is to create a suite of tools for professional writers.
 
+## Running Locally
+
+Start the web interface with [web.sh](web.sh) in Bash or
+[web.bat](web.bat) in Windows Command Prompt.
+
 ## Contributor Editor
 
 The editor is at `/editor`. Add a contributor, select **Biography** or
