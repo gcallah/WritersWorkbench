@@ -12,6 +12,8 @@
         <option value="{{ value }}" {% if value == project.type %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
+    <label for="authors">Authors (one per line)</label>
+    <textarea id="authors" name="authors" rows="6">{{ author_names | join('\n') }}</textarea>
     <button class="primary" type="submit">Save changes</button>
   </form>
 {% endblock %}

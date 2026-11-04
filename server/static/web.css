@@ -20,8 +20,8 @@ h2 { font-size: 17px; margin: 0 0 12px; }
 .card:hover { border-color: var(--accent); }
 .panel { display: grid; gap: 8px; max-width: 480px; margin-bottom: 28px; }
 label { color: var(--muted); font-size: 13px; }
-input, select, button, .button { font: inherit; border-radius: 4px; }
-input, select { border: 1px solid #b9c5bf; padding: 9px 11px; background: var(--paper); color: var(--ink); }
+input, select, textarea, button, .button { font: inherit; border-radius: 4px; }
+input, select, textarea { border: 1px solid #b9c5bf; padding: 9px 11px; background: var(--paper); color: var(--ink); }
 button, .button { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 7px 14px; cursor: pointer; text-decoration: none; display: inline-block; }
 .primary { background: var(--accent); border-color: var(--accent); color: #fff; justify-self: start; margin-top: 8px; }
 .danger { color: var(--error); }

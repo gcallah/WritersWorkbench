@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+import projects.authors as authors
 import server.endpoints as ep
 
 TEST_CLIENT = ep.app.test_client()
@@ -172,6 +173,40 @@ def test_project_delete_not_there():
                               query_string=USER_PARAM, headers=AUTH_HDRS)
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
+
+
+def test_project_authors_set_and_get(temp_project):
+    names = [f'Zed {uuid4().hex[:8]}', f'Ada {uuid4().hex[:8]}']
+    url = f'{ep.PROJ_AUTHORS_W_NS}/{temp_project}'
+    try:
+        resp = TEST_CLIENT.put(url, json={ep.AUTHORS: names},
+                               query_string=USER_PARAM, headers=AUTH_HDRS)
+        assert resp.status_code == HTTPStatus.OK
+        resp = TEST_CLIENT.get(url, query_string=USER_PARAM,
+                               headers=AUTH_HDRS)
+        assert resp.status_code == HTTPStatus.OK
+        found = [author[authors.NAME]
+                 for author in resp.get_json()[ep.AUTHORS]]
+        assert found == sorted(names)
+    finally:
+        for name in names:
+            for author_id in authors.fetch_by_name(name):
+                authors.delete(author_id)
+
+
+@pytest.mark.parametrize('body', [{}, {ep.AUTHORS: 'not a list'},
+                                  {ep.AUTHORS: ['']}])
+def test_project_authors_bad_list(temp_project, body):
+    resp = TEST_CLIENT.put(f'{ep.PROJ_AUTHORS_W_NS}/{temp_project}',
+                           json=body, query_string=USER_PARAM,
+                           headers=AUTH_HDRS)
+    assert resp.status_code == HTTPStatus.NOT_ACCEPTABLE
+
+
+def test_project_authors_not_there():
+    resp = TEST_CLIENT.get(f'{ep.PROJ_AUTHORS_W_NS}/{NO_SUCH_CODE}',
+                           query_string=USER_PARAM, headers=AUTH_HDRS)
+    assert resp.status_code == HTTPStatus.NOT_FOUND
 
 OWNER_HDRS = {ep.AUTH_KEY: ep.uqry.TEST_SAMPLE[ep.uqry.AUTH_KEY]}
 STRANGER_HDRS = {ep.AUTH_KEY: 'someone else'}

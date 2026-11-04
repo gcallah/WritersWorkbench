@@ -1,8 +1,11 @@
 """Tests for the projects web interface (issue #4)."""
 from base64 import b64encode
+from uuid import uuid4
 
 import pytest
 
+import projects.author_project as ap
+import projects.authors as authors
 import projects.query as pqry
 from server.endpoints import app
 
@@ -137,3 +140,68 @@ def test_cross_site_label_blocked(client):
                            data={'name': 'Sneaky Two', 'type': pqry.ESSAY})
     assert response.status_code == 403
     assert _codes_named('Sneaky Two') == []
+
+
+def _delete_authors(names):
+    for name in names:
+        for author_id in authors.fetch_by_name(name):
+            authors.delete(author_id)
+
+
+@pytest.fixture
+def project_code():
+    code = pqry.add(dict(pqry.TEST_SAMPLE))
+    yield code
+    if pqry.is_valid(code):
+        pqry.delete(code)
+
+
+def _edit_form(code, author_text):
+    project = pqry.fetch_by_key(code)
+    return {'name': project[pqry.NAME], 'type': project[pqry.TYPE],
+            'authors': author_text}
+
+
+def test_edit_saves_author_list(client, project_code):
+    zed, ada = f'Zed {uuid4().hex[:8]}', f'Ada {uuid4().hex[:8]}'
+    try:
+        # Blank lines and extra spaces are ignored.
+        client.post(f'/web/projects/{project_code}/edit',
+                    headers=_login_header(),
+                    data=_edit_form(project_code, f'  {zed}\n\n{ada}\n'))
+        found = [author[authors.NAME]
+                 for author in ap.fetch_authors(project_code)]
+        assert found == [ada, zed]
+
+        # The edit page shows the saved authors, one per line.
+        response = client.get(f'/web/projects/{project_code}/edit',
+                              headers=_login_header())
+        assert f'{ada}\n{zed}'.encode() in response.data
+    finally:
+        _delete_authors([zed, ada])
+
+
+def test_edit_replaces_author_list(client, project_code):
+    keep, drop = f'Keep {uuid4().hex[:8]}', f'Drop {uuid4().hex[:8]}'
+    try:
+        ap.set_authors(project_code, [keep, drop])
+        client.post(f'/web/projects/{project_code}/edit',
+                    headers=_login_header(),
+                    data=_edit_form(project_code, keep))
+        found = [author[authors.NAME]
+                 for author in ap.fetch_authors(project_code)]
+        assert found == [keep]
+    finally:
+        _delete_authors([keep, drop])
+
+
+def test_edit_bad_author_saves_nothing(client, project_code):
+    old_name = pqry.fetch_by_key(project_code)[pqry.NAME]
+    data = _edit_form(project_code, 'x' * (authors.MAX_NAME_LEN + 1))
+    data['name'] = 'Should Not Save'
+    response = client.post(f'/web/projects/{project_code}/edit',
+                           headers=_login_header(), data=data,
+                           follow_redirects=True)
+    assert b'Author name must be' in response.data
+    assert pqry.fetch_by_key(project_code)[pqry.NAME] == old_name
+    assert ap.fetch_authors(project_code) == []

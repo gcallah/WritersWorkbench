@@ -62,6 +62,7 @@ import server.security as sec
 from server.editor import editor
 from server.web import web
 
+import projects.author_project as ap
 import projects.query as pqry
 import users.query as uqry
 
@@ -110,6 +111,8 @@ PROJ_READ_W_NS = f'/{PROJECTS}/{READ}'
 PROJ_RETRIEVE_W_NS = f'/{PROJECTS}/{RETRIEVE}'
 PROJ_UPDATE_W_NS = f'/{PROJECTS}/{UPDATE}'
 PROJ_DELETE_W_NS = f'/{PROJECTS}/{DELETE}'
+AUTHORS = 'authors'
+PROJ_AUTHORS_W_NS = f'/{PROJECTS}/{AUTHORS}'
 
 # Users
 USERS = 'Users'
@@ -350,6 +353,36 @@ class ProjectDelete(Resource):
         fetch_project(code)
         pqry.delete(code)
         return {MESSAGE: 'Project deleted.'}
+
+
+AUTHOR_LIST_FLDS = projects.model('AuthorList', {
+    AUTHORS: fields.List(fields.String),
+})
+
+
+@projects.route(f'/{AUTHORS}/<code>')
+@projects.expect(proj_parser)
+class ProjectAuthors(Resource):
+    def get(self, code):
+        """
+        Returns the project's authors, sorted by name.
+        """
+        check_access(request)
+        fetch_project(code)
+        return {AUTHORS: ap.fetch_authors(code)}
+
+    @projects.expect(AUTHOR_LIST_FLDS)
+    def put(self, code):
+        """
+        Makes the project's authors exactly this list of names.
+        """
+        check_access(request)
+        fetch_project(code)
+        names = (request.json or {}).get(AUTHORS)
+        try:
+            return {AUTHORS: ap.set_authors(code, names)}
+        except ValueError as err:
+            raise wz.NotAcceptable(str(err))
 
 
 USER_FLDS = users.model('User', {
