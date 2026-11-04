@@ -14,8 +14,8 @@ from secrets import compare_digest
 from flask import (Blueprint, current_app, flash, redirect, render_template,
                    request, url_for)
 
-import projects.author_project as ap
-import projects.authors as authors
+import projects.person_project as pp
+import projects.people as people
 import projects.query as pqry
 
 # The edit form's box where the editor types one author per line.
@@ -150,8 +150,8 @@ def project_edit(code):
     if project is None:
         flash('That project no longer exists.', 'error')
         return redirect(url_for('web.project_list'))
-    author_names = [author[authors.NAME]
-                    for author in ap.fetch_authors(code)]
+    author_names = [author[people.NAME]
+                    for author in pp.fetch_authors(code)]
     return render_template('web/project_edit.html', project=project,
                            type_choices=pqry.get_type_choices(),
                            author_names=author_names)
@@ -180,9 +180,9 @@ def project_update(code):
     try:
         # Check the author names first, so a bad name saves nothing.
         for name in author_names:
-            authors.check_name(name)
+            people.check_name(name)
         pqry.update(code, changes)
-        ap.set_authors(code, author_names)
+        pp.set_authors(code, author_names)
     except ValueError as err:
         # Stay on the edit page so the person can fix the problem.
         flash(str(err), 'error')

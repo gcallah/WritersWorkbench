@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 
-import projects.authors as authors
+import projects.people as people
 import server.endpoints as ep
 
 TEST_CLIENT = ep.app.test_client()
@@ -185,13 +185,13 @@ def test_project_authors_set_and_get(temp_project):
         resp = TEST_CLIENT.get(url, query_string=USER_PARAM,
                                headers=AUTH_HDRS)
         assert resp.status_code == HTTPStatus.OK
-        found = [author[authors.NAME]
+        found = [author[people.NAME]
                  for author in resp.get_json()[ep.AUTHORS]]
         assert found == sorted(names)
     finally:
         for name in names:
-            for author_id in authors.fetch_by_name(name):
-                authors.delete(author_id)
+            for author_id in people.fetch_by_name(name):
+                people.delete(author_id)
 
 
 @pytest.mark.parametrize('body', [{}, {ep.AUTHORS: 'not a list'},

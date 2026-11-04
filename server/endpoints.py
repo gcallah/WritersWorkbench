@@ -62,7 +62,7 @@ import server.security as sec
 from server.editor import editor
 from server.web import web
 
-import projects.author_project as ap
+import projects.person_project as pp
 import projects.query as pqry
 import users.query as uqry
 
@@ -369,7 +369,7 @@ class ProjectAuthors(Resource):
         """
         check_access(request)
         fetch_project(code)
-        return {AUTHORS: ap.fetch_authors(code)}
+        return {AUTHORS: pp.fetch_authors(code)}
 
     @projects.expect(AUTHOR_LIST_FLDS)
     def put(self, code):
@@ -380,7 +380,7 @@ class ProjectAuthors(Resource):
         fetch_project(code)
         names = (request.json or {}).get(AUTHORS)
         try:
-            return {AUTHORS: ap.set_authors(code, names)}
+            return {AUTHORS: pp.set_authors(code, names)}
         except ValueError as err:
             raise wz.NotAcceptable(str(err))
 
