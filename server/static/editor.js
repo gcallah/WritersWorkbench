@@ -1,7 +1,98 @@
 'use strict';
 
 const byId = (id) => document.getElementById(id);
-const text = byId('piece-text');
+
+// The piece box. When Toast UI loaded from its CDN, this is a Word-like
+// editor that saves markdown, so contributors can format text without
+// knowing markdown (issue #20). If the CDN could not be reached, it is the
+// plain textarea. The rest of this file only uses these five functions,
+// so it works the same either way.
+const piece = (() => {
+  const box = byId('piece-text');
+  const plain = {
+    value: () => box.value,
+    setValue: (value) => { box.value = value; },
+    setDisabled: (disabled) => { box.disabled = disabled; },
+    setPlaceholder: (value) => { box.placeholder = value; },
+    onChange: (handler) => box.addEventListener('input', handler),
+  };
+  if (!window.toastui?.Editor) return plain;
+  const holder = byId('piece-editor');
+  holder.hidden = false;
+  let editor;
+  try {
+    editor = new window.toastui.Editor({
+      el: holder,
+      height: '440px',
+      initialEditType: 'wysiwyg',
+      hideModeSwitch: true,
+      // Don't send usage data to Toast UI's servers.
+      usageStatistics: false,
+      toolbarItems: [['heading', 'bold', 'italic', 'strike'], ['ul', 'ol', 'quote'], ['link']],
+      // Pasted or dropped images would be saved inside the text; ignore them.
+      hooks: { addImageBlobHook: () => false },
+    });
+  } catch (error) {
+    holder.hidden = true;
+    return plain;
+  }
+  box.hidden = true;
+  // The page's "Biography" label points at the hidden textarea, so name the
+  // editor's typing area for screen readers too...
+  holder.querySelectorAll('[contenteditable]').forEach((area) => {
+    area.setAttribute('aria-labelledby', 'piece-label');
+  });
+  // ...and make clicking the label put the cursor in the editor.
+  byId('piece-label').addEventListener('click', (event) => {
+    event.preventDefault();
+    if (!holder.inert) editor.focus();
+  });
+
+  // Forget the undo history, so Undo can't bring back text from before the
+  // last load (for example the previous contributor's bio, which Save would
+  // then store on this contributor). Toast UI 3.2.2 has no public way to do
+  // this, so reset its ProseMirror state directly; the version is pinned in
+  // editor.html.
+  function clearUndoHistory() {
+    const view = editor.wwEditor?.view;
+    if (!view) return;
+    const { state } = view;
+    view.updateState(state.constructor.create({
+      doc: state.doc, selection: state.selection, plugins: state.plugins,
+    }));
+  }
+
+  // True while the code (not the person) is filling the editor, so that
+  // doesn't count as typing.
+  let filling = false;
+  // Whether the typing area had focus when the editor was locked.
+  let hadFocus = false;
+  return {
+    value: () => editor.getMarkdown(),
+    setValue: (value) => {
+      filling = true;
+      try {
+        editor.setMarkdown(value, false);
+        clearUndoHistory();
+      } finally {
+        filling = false;
+      }
+    },
+    setDisabled: (disabled) => {
+      if (disabled === holder.inert) return;
+      if (disabled) hadFocus = holder.contains(document.activeElement);
+      // inert blocks clicks, typing and focus inside the editor.
+      holder.inert = disabled;
+      holder.classList.toggle('is-disabled', disabled);
+      if (!disabled && hadFocus) {
+        hadFocus = false;
+        editor.focus();
+      }
+    },
+    setPlaceholder: (value) => editor.setPlaceholder?.(value),
+    onChange: (handler) => editor.on('change', () => { if (!filling) handler(); }),
+  };
+})();
 const tabs = [...document.querySelectorAll('[data-type]')];
 const labels = {
   bio: 'Biography', submission: 'Submission', abstract: 'Abstract',
@@ -28,6 +119,10 @@ let contributors = [];
 let selected = null;
 let pieceType = 'bio';
 let savedText = '';
+// What the box held right after loading or saving. Toast UI may tidy the
+// markdown when it loads (for example * bullets become -), so unsaved
+// changes are measured against this, not against the server's text.
+let baseline = '';
 let busy = false;
 let creating = false;
 let projectCode = '';
@@ -83,8 +178,16 @@ function status(message, error = false) {
   byId('save-status').classList.toggle('error', error);
 }
 
+const MAX_LENGTH = 100000;
+
+// The textarea's maxlength doesn't apply to Toast UI, so check it here.
+// (The saved markdown counts, including formatting marks.)
+function tooLong() {
+  return piece.value().length > MAX_LENGTH;
+}
+
 function pieceDirty() {
-  return selected !== null && text.value !== savedText;
+  return selected !== null && piece.value() !== baseline;
 }
 
 function refereeAnswer() {
@@ -118,8 +221,8 @@ function clearDocumentUpload() {
 
 function updateControls() {
   byId('project-select').disabled = busy || creating || !projectsAvailable;
-  text.disabled = busy || selected === null;
-  byId('save').disabled = busy || !pieceDirty() || !text.value.trim();
+  piece.setDisabled(busy || selected === null);
+  byId('save').disabled = busy || !pieceDirty() || !piece.value().trim() || tooLong();
   byId('document-file').disabled = busy || selected === null;
   byId('upload-document').disabled = busy || selected === null || !byId('document-file').files.length;
   byId('referee-form').hidden = selected === null || pieceType !== 'submission';
@@ -133,7 +236,8 @@ function updateControls() {
     if ('projectOnly' in tab.dataset) tab.hidden = !projectCode;
     tab.disabled = busy || selected === null;
   });
-  byId('character-count').textContent = `${text.value.length.toLocaleString()} / 100,000`;
+  byId('character-count').textContent = `${piece.value().length.toLocaleString()} / 100,000`;
+  byId('character-count').classList.toggle('error', tooLong());
 }
 
 function renderContributors() {
@@ -178,14 +282,15 @@ async function loadPiece(record, type) {
     selected = record;
     pieceType = type;
     savedText = data.text;
-    text.value = savedText;
+    piece.setValue(savedText);
+    baseline = piece.value();
     byId('has-referee').value = record.HasReferee === true ? 'yes' :
       record.HasReferee === false ? 'no' : '';
     byId('referee-status').textContent = record.HasReferee === null ||
       record.HasReferee === undefined ? 'No answer saved' : 'Answer saved';
     byId('contributor-name').textContent = record.name;
     byId('piece-label').textContent = labels[type];
-    text.placeholder = placeholders[type];
+    piece.setPlaceholder(placeholders[type]);
     byId('piece-panel').setAttribute('aria-labelledby', `${type}-tab`);
     tabs.forEach((tab) => {
       const active = tab.dataset.type === type;
@@ -222,22 +327,25 @@ tabs.forEach((tab, index) => {
   });
 });
 
-text.addEventListener('input', () => {
-  status(pieceDirty() ? 'Unsaved changes' : 'All changes saved');
+piece.onChange(() => {
+  if (tooLong()) status('Pieces must be at most 100,000 characters. Shorten the text to save.', true);
+  else status(pieceDirty() ? 'Unsaved changes' : 'All changes saved');
   updateControls();
 });
 byId('search').addEventListener('input', renderContributors);
 byId('save').addEventListener('click', async () => {
-  if (busy || !selected || !pieceDirty() || !text.value.trim()) return;
+  if (busy || !selected || !pieceDirty() || !piece.value().trim() || tooLong()) return;
   busy = true;
   updateControls();
   status('Saving...');
   try {
+    const sent = piece.value();
     const record = await api(`/api/contributors/${selected.id}/pieces/${pieceType}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.value }),
+      body: JSON.stringify({ text: sent }),
     });
-    savedText = text.value;
+    savedText = sent;
+    baseline = sent;
     selected = record;
     contributors = contributors.map((entry) => entry.id === record.id ? record : entry);
     renderContributors();
@@ -373,7 +481,8 @@ byId('project-select').addEventListener('change', async () => {
   selected = null;
   contributors = [];
   savedText = '';
-  text.value = '';
+  piece.setValue('');
+  baseline = '';
   byId('contributor-name').textContent = 'No contributor selected';
   renderContributors();
   renderReceipt();

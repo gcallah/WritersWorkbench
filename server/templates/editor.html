@@ -4,8 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Contributors | Writer's Workbench</title>
+  {# Toast UI Editor (issue #20): a Word-like editor that saves markdown. Version pinned. #}
+  <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='editor.css') }}">
   <script defer src="https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+  {# Deferred scripts run in order, so Toast UI is ready before editor.js. #}
+  <script defer src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
   <script defer src="{{ url_for('static', filename='editor.js') }}"></script>
 </head>
 <body>
@@ -89,7 +93,9 @@
           <button id="upload-document" class="secondary" type="button" disabled>Upload document</button>
           <span class="upload-limit">DOCX or PDF, up to 10 MB</span>
         </div>
+        {# The plain box is kept as a fallback in case Toast UI fails to load. #}
         <textarea id="piece-text" maxlength="100000" spellcheck="true" disabled></textarea>
+        <div id="piece-editor" class="piece-editor" hidden></div>
         <footer class="save-bar">
           <p id="save-status" role="status" aria-live="polite">No contributor selected</p>
           <button id="save" class="primary" disabled>

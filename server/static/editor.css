@@ -60,6 +60,13 @@ h2 { font-family: Georgia, serif; font-size: 29px; font-weight: 400; margin: 0; 
 .upload-limit { color: var(--muted); font-size: 11px; }
 textarea { display: block; width: 100%; min-height: 390px; height: max(390px, calc(100vh - 410px)); padding: 28px; resize: vertical; color: var(--ink); background: var(--paper); border: 1px solid #cbd5cf; border-top: 3px solid #cbd5cf; border-radius: 3px; font-family: Georgia, serif; font-size: 18px; line-height: 1.8; }
 textarea:disabled { background: #eef1ef; }
+/* The textarea above sets display, which would otherwise beat the hidden attribute. */
+textarea[hidden] { display: none; }
+/* Toast UI editor (issue #20): match the page's writing surface. */
+.piece-editor .toastui-editor-defaultUI { border-color: #cbd5cf; border-top: 3px solid #cbd5cf; border-radius: 3px; }
+.piece-editor .toastui-editor-contents { font-family: Georgia, serif; font-size: 18px; line-height: 1.8; color: var(--ink); }
+.piece-editor.is-disabled { opacity: .6; }
+#character-count.error { color: var(--error); }
 .save-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 0; }
 #save-status { color: var(--muted); margin: 0; font-size: 12px; overflow-wrap: anywhere; }
 #save-status.error, .error { color: var(--error); }
