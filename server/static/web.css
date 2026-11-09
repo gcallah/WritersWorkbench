@@ -34,4 +34,11 @@ th { color: var(--muted); font-size: 13px; font-weight: 600; }
 .flash { padding: 10px 14px; border-radius: 4px; margin: 0 0 16px; }
 .flash-success { background: var(--accent-light); }
 .flash-error { background: #f8e6e4; color: var(--error); }
+/* Pieces that explain how to add projects and authors. */
+.steps { margin: 0 0 20px; padding-left: 20px; }
+.hint, .none { color: var(--muted); font-size: 13px; }
+.hint p { margin: 0 0 4px; }
+fieldset { border: 0; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; }
+legend { font-weight: 600; margin-bottom: 8px; }
+.author-list { margin: 0; padding-left: 18px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

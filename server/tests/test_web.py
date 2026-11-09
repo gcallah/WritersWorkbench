@@ -205,3 +205,28 @@ def test_edit_bad_author_saves_nothing(client, project_code):
     assert b'Person name must be' in response.data
     assert pqry.fetch_by_key(project_code)[pqry.NAME] == old_name
     assert pp.fetch_authors(project_code) == []
+
+
+def test_create_goes_to_authors(client):
+    name = f'Next Step {uuid4().hex[:8]}'
+    response = client.post('/web/projects', headers=_login_header(),
+                           data={'name': name, 'type': pqry.ESSAY})
+    code = _codes_named(name)[0]
+    try:
+        # After creating, the next step is adding authors.
+        assert response.headers['Location'].endswith(
+            f'/web/projects/{code}/edit#authors')
+    finally:
+        pqry.delete(code)
+
+
+def test_list_shows_authors(client, project_code):
+    name = f'Shown {uuid4().hex[:8]}'
+    response = client.get('/web/projects', headers=_login_header())
+    assert b'No authors yet.' in response.data
+    try:
+        pp.set_authors(project_code, [name])
+        response = client.get('/web/projects', headers=_login_header())
+        assert f'<li>{name}</li>'.encode() in response.data
+    finally:
+        _delete_authors([name])

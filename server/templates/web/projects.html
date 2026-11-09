@@ -3,9 +3,15 @@
 {% block content %}
   <h1>Projects <span class="count">{{ projects|length }}</span></h1>
 
+  {# The two steps really are in order: a project must exist before it can have authors. #}
+  <ol class="steps">
+    <li>Create a project by giving it a name and a type.</li>
+    <li>Add its authors on the project's page. You can change them any time with <strong>Edit</strong>.</li>
+  </ol>
+
   {# Form for adding a new project. It sends a POST to /web/projects. #}
   <form class="panel create-form" method="post" action="{{ url_for('web.project_create') }}">
-    <h2>New project</h2>
+    <h2>Create a project</h2>
     <label for="name">Project name</label>
     <input id="name" name="name" required maxlength="200">
     <label for="type">Project type</label>
@@ -15,22 +21,35 @@
       {% endfor %}
     </select>
     <button class="primary" type="submit">Create project</button>
+    <p class="hint">Next, you'll add the project's authors.</p>
   </form>
 
   {% if projects %}
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Name</th><th>Type</th><th>Owner</th><th><span class="sr-only">Actions</span></th></tr>
+          <tr><th>Name</th><th>Type</th><th>Authors</th><th>Owner</th><th><span class="sr-only">Actions</span></th></tr>
         </thead>
         <tbody>
           {% for project in projects %}
+            {% set authors = authors_by_code.get(project.code, []) %}
+            {% set edit_url = url_for('web.project_edit', code=project.code) %}
             <tr>
               <td>{{ project.name }}</td>
               <td>{{ type_choices.get(project.type, project.type) }}</td>
+              <td>
+                {% if authors %}
+                  <ul class="author-list">
+                    {% for author in authors %}<li>{{ author }}</li>{% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="none">No authors yet.</span>
+                  <a href="{{ edit_url }}#authors">Add authors</a>
+                {% endif %}
+              </td>
               <td>{{ project.user }}</td>
               <td class="actions">
-                <a class="button" href="{{ url_for('web.project_edit', code=project.code) }}">Edit</a>
+                <a class="button" href="{{ edit_url }}">Edit</a>
                 {# confirm() pops up "are you sure?" before deleting. #}
                 <form method="post" action="{{ url_for('web.project_delete', code=project.code) }}"
                       onsubmit="return confirm('Delete this project? Its files will be kept on disk.');">
@@ -43,6 +62,6 @@
       </table>
     </div>
   {% else %}
-    <p class="empty">No projects yet. Create one above to get started.</p>
+    <p class="empty">No projects yet. Create one above, then add its authors.</p>
   {% endif %}
 {% endblock %}

@@ -118,8 +118,15 @@ def project_list():
     # Sort by name, ignoring upper/lower case, so the list is easy to scan.
     all_projects = sorted(pqry.fetch_list(),
                           key=lambda proj: proj[pqry.NAME].casefold())
+    # Each project's author names, so the list can show who is on it.
+    authors_by_code = {
+        proj[pqry.CODE]: [author[people.NAME]
+                          for author in pp.fetch_authors(proj[pqry.CODE])]
+        for proj in all_projects
+    }
     return render_template('web/projects.html',
                            projects=all_projects,
+                           authors_by_code=authors_by_code,
                            type_choices=pqry.get_type_choices())
 
 
@@ -133,14 +140,18 @@ def project_create():
         pqry.USER: _current_user(),
     }
     try:
-        pqry.add(new_project)
-        flash(f'Created "{new_project[pqry.NAME]}".', 'success')
+        code = pqry.add(new_project)
     except ValueError as err:
         # add() raises ValueError for a blank name or unknown type.
         flash(str(err), 'error')
-    # Send the browser back to the list so a page refresh doesn't
-    # submit the form a second time.
-    return redirect(url_for('web.project_list'))
+        # Back to the list so a page refresh doesn't submit the form again.
+        return redirect(url_for('web.project_list'))
+    # Adding authors is the next step, so go straight to that part of
+    # the new project's page.
+    flash(f'Created "{new_project[pqry.NAME]}". Now add its authors.',
+          'success')
+    return redirect(url_for('web.project_edit', code=code,
+                            _anchor=AUTHORS_FIELD))
 
 
 @web.get('/projects/<code>/edit')

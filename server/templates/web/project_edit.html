@@ -2,18 +2,33 @@
 {% block title %}Edit {{ project.name }}{% endblock %}
 {% block content %}
   <p><a href="{{ url_for('web.project_list') }}">&larr; Back to projects</a></p>
-  <h1>Edit project</h1>
+  <h1>{{ project.name }}</h1>
   <form class="panel" method="post" action="{{ url_for('web.project_update', code=project.code) }}">
-    <label for="name">Project name</label>
-    <input id="name" name="name" required maxlength="200" value="{{ project.name }}">
-    <label for="type">Project type</label>
-    <select id="type" name="type">
-      {% for value, label in type_choices.items() %}
-        <option value="{{ value }}" {% if value == project.type %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <label for="authors">Authors (one per line)</label>
-    <textarea id="authors" name="authors" rows="6">{{ author_names | join('\n') }}</textarea>
-    <button class="primary" type="submit">Save changes</button>
+    <fieldset>
+      <legend>Project details</legend>
+      <label for="name">Project name</label>
+      <input id="name" name="name" required maxlength="200" value="{{ project.name }}">
+      <label for="type">Project type</label>
+      <select id="type" name="type">
+        {% for value, label in type_choices.items() %}
+          <option value="{{ value }}" {% if value == project.type %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </fieldset>
+
+    <fieldset>
+      <legend>Authors ({{ author_names|length }})</legend>
+      <label for="authors">Author names, one per line</label>
+      <div id="authors-help" class="hint">
+        <p>To add an author, type their name on a new line.
+           To remove one, delete their line.</p>
+        <p>If someone with the same name is already in Writer's Workbench,
+           that person is added instead of a new one.</p>
+      </div>
+      {# Keep the textarea's content on one line: any spaces here would end up in the box. #}
+      <textarea id="authors" name="authors" rows="6" aria-describedby="authors-help" placeholder="Ada Lovelace&#10;Grace Hopper">{{ author_names | join('\n') }}</textarea>
+    </fieldset>
+
+    <button class="primary" type="submit">Save project and authors</button>
   </form>
 {% endblock %}
