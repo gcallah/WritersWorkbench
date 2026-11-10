@@ -197,7 +197,9 @@ def read_toc(code):
     if project is None:
         raise KeyError('Project not found.')
     if project[projects_query.TYPE] != projects_query.COLLECTION:
-        raise ValueError('Table of contents requires an edited-volume project.')
+        raise ValueError(
+            'Table of contents requires an edited-volume project.'
+        )
     return jsonify(text=project.get('toc') or '')
 
 
@@ -208,12 +210,16 @@ def save_toc(code):
     if project is None:
         raise KeyError('Project not found.')
     if project[projects_query.TYPE] != projects_query.COLLECTION:
-        raise ValueError('Table of contents requires an edited-volume project.')
+        raise ValueError(
+            'Table of contents requires an edited-volume project.'
+        )
     text = _payload().get('text')
     if text is None:
         raise ValueError('Send the table of contents text.')
     if len(text) > MAX_TOC_CHARS:
-        raise ValueError('Table of contents must be at most 100,000 characters.')
+        raise ValueError(
+            'Table of contents must be at most 100,000 characters.'
+        )
     if not projects_query.update(code, {'toc': text}):
         raise OSError('Could not update table of contents.')
     return jsonify(text=text)
