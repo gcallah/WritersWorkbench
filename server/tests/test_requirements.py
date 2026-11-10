@@ -27,19 +27,20 @@ def books():
 
 
 def endpoint(code):
-    return f'/api/editor/projects/{code}/requirements'
+    # Moved into the Projects API in issue #22.
+    return f'/Projects/requirements/{code}'
 
 
 def test_save_read_and_project_isolation(client, books):
     first, second = books
     flags = dict.fromkeys(qry.REQUIREMENT_FIELDS, True)
-    assert client.post(endpoint(first), json=flags).json == {
+    assert client.put(endpoint(first), json=flags).json == {
         'requirements': flags}
     qry.get_cache(qry.COLLECT).clear_cache()
     assert client.get(endpoint(first)).json == {'requirements': flags}
     assert client.get(endpoint(second)).json == {
         'requirements': dict.fromkeys(qry.REQUIREMENT_FIELDS, False)}
-    response = client.post(endpoint(first), json={qry.REQUIRES_BIO: False})
+    response = client.put(endpoint(first), json={qry.REQUIRES_BIO: False})
     assert response.status_code == 200
     assert response.json['requirements'] == {**flags, qry.REQUIRES_BIO: False}
 
@@ -50,30 +51,30 @@ def test_save_read_and_project_isolation(client, books):
 ])
 def test_invalid_requests_do_not_change_project(client, books, payload):
     before = qry.fetch_by_key(books[0])
-    assert client.post(endpoint(books[0]), json=payload).status_code == 400
+    assert client.put(endpoint(books[0]), json=payload).status_code == 400
     assert qry.fetch_by_key(books[0]) == before
 
 
 def test_editor_access_and_cross_origin(client, books):
     url = endpoint(books[0])
     assert client.get(url, headers={'Authorization': ''}).status_code == 401
-    assert client.post(url, json={qry.REQUIRES_BIO: True},
+    assert client.put(url, json={qry.REQUIRES_BIO: True},
                        headers={'Authorization': ''}).status_code == 401
-    assert client.post(url, json={qry.REQUIRES_BIO: True},
+    assert client.put(url, json={qry.REQUIRES_BIO: True},
                        headers={'Origin': 'https://other.example'}
                        ).status_code == 403
-    assert client.post(url, data='requires_bio=true').status_code == 415
+    assert client.put(url, data='requires_bio=true').status_code == 415
     assert qry.fetch_by_key(books[0])[qry.REQUIRES_BIO] is False
 
 
 def test_missing_and_wrong_type(client):
     assert client.get(endpoint('missing')).status_code == 404
-    assert client.post(endpoint('missing'), json={qry.REQUIRES_BIO: True}
+    assert client.put(endpoint('missing'), json={qry.REQUIRES_BIO: True}
                        ).status_code == 404
     code = qry.add(qry.TEST_SAMPLE)
     try:
         assert client.get(endpoint(code)).status_code == 400
-        assert client.post(endpoint(code), json={qry.REQUIRES_BIO: True}
+        assert client.put(endpoint(code), json={qry.REQUIRES_BIO: True}
                            ).status_code == 400
     finally:
         qry.delete(code)
@@ -87,7 +88,7 @@ def test_requirements_preserve_received_bio_and_file(client, books):
         materials.save_text(code, person['id'], 'bio', 'Existing biography')
         before = contributors.fetch(code, person['id'])
         for required in (True, False):
-            response = client.post(endpoint(code), json={
+            response = client.put(endpoint(code), json={
                 field: required for field in qry.REQUIREMENT_FIELDS})
             assert response.status_code == 200
             assert contributors.fetch(code, person['id']) == before
@@ -141,7 +142,22 @@ def test_existing_projects_api_accepts_requirements(client, books):
 
 def test_storage_failure_not_reported_as_saved(client, books, monkeypatch):
     monkeypatch.setattr(qry, 'update', lambda *args: False)
-    response = client.post(endpoint(books[0]),
+    response = client.put(endpoint(books[0]),
                            json={qry.REQUIRES_BIO: True})
     assert response.status_code == 500
     assert qry.fetch_by_key(books[0])[qry.REQUIRES_BIO] is False
+
+
+def test_old_editor_endpoints_are_gone(client, books):
+    # Issue #22: the project picker list was removed, and requirements
+    # moved into the Projects API.
+    assert client.get('/api/editor/projects').status_code == 404
+    old_url = f'/api/editor/projects/{books[0]}/requirements'
+    assert client.get(old_url).status_code == 404
+
+
+def test_requirements_listed_with_project_endpoints(client):
+    from server import endpoints as ep
+    response = client.get(f'/{ep.ENDPOINTS}/{ep.READ}')
+    docs = response.get_json()[ep.ENDPOINT_STR]
+    assert set(docs['/Projects/requirements/<code>']) == {'get', 'put'}

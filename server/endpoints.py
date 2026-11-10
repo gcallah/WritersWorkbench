@@ -6,7 +6,7 @@ import os
 import secrets
 from pathlib import Path
 
-from flask import Flask, request
+from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 from flask_restx import Resource, Namespace, fields
 import werkzeug.exceptions as wz
@@ -59,7 +59,7 @@ from server.consts import (  # noqa F401
     USER_DATA,
 )
 import server.security as sec
-from server.editor import editor
+from server.editor import editor, editor_login_problem
 from server.web import web
 
 import projects.person_project as pp
@@ -110,6 +110,8 @@ PROJ_CREATE_W_NS = f'/{PROJECTS}/{CREATE}'
 PROJ_READ_W_NS = f'/{PROJECTS}/{READ}'
 PROJ_RETRIEVE_W_NS = f'/{PROJECTS}/{RETRIEVE}'
 PROJ_UPDATE_W_NS = f'/{PROJECTS}/{UPDATE}'
+REQUIREMENTS = 'requirements'
+PROJ_REQUIREMENTS_W_NS = f'/{PROJECTS}/{REQUIREMENTS}'
 PROJ_DELETE_W_NS = f'/{PROJECTS}/{DELETE}'
 AUTHORS = 'authors'
 PROJ_AUTHORS_W_NS = f'/{PROJECTS}/{AUTHORS}'
@@ -134,9 +136,9 @@ api.add_namespace(users)
 
 # For the frontend:
 ENDPOINTS_READ = {
-    'ContributorEditor': '/editor',
     'WebHome': '/web/',
     'WebProjects': '/web/projects',
+    'WebProjectContributors': '/web/projects/<code>/contributors',
     'Contributors': '/api/contributors',
     'AuthKey': VALID_KEY_W_NS,
     'IsValidUser': SEC_MANAGER_IS_PERMITTED_W_NS,
@@ -145,6 +147,7 @@ ENDPOINTS_READ = {
     'ProjectDelete': PROJ_DELETE_W_NS,
     'ProjectRetrieve': PROJ_RETRIEVE_W_NS,
     'ProjectUpdate': PROJ_UPDATE_W_NS,
+    'ProjectRequirements': PROJ_REQUIREMENTS_W_NS,
     'ProjectsRead': PROJ_READ_W_NS,
     'ResetPW': RESET_PW_W_NS,
     'ResetTok': PW_RESET_TOK_W_NS,
@@ -340,6 +343,82 @@ class ProjectUpdate(Resource):
         except ValueError as err:
             raise wz.NotAcceptable(str(err))
         return {MESSAGE: 'Project updated.'}
+
+
+def _private_json(body, status=200):
+    """
+    Send back JSON that browsers shouldn't save a copy of, since it's
+    only for logged-in editors.
+    """
+    response = make_response(jsonify(body), status)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+def project_requirements(code) -> dict:
+    """
+    Returns what each contributor to this project must provide. Raises
+    KeyError if the project doesn't exist, or ValueError if it isn't an
+    edited volume or journal issue (the types that have contributors).
+    """
+    project = pqry.fetch_by_key(code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if not pqry.is_multi_author(project[pqry.TYPE]):
+        raise ValueError('Requirements need a multi-author project.')
+    return {field: project[field] for field in pqry.REQUIREMENT_FIELDS}
+
+
+@projects.route(f'/{REQUIREMENTS}/<code>')
+class ProjectRequirements(Resource):
+    """
+    What each contributor must provide (a bio, permission to publish, an
+    address). Moved here from /api/editor in issue #22. It uses the same
+    login as the web pages, since the Contributors page calls it.
+    """
+    def get(self, code):
+        """
+        Returns what each contributor to this project must provide.
+        """
+        problem = editor_login_problem()
+        if problem is not None:
+            return _private_json_error(problem)
+        try:
+            return _private_json({REQUIREMENTS: project_requirements(code)})
+        except KeyError as err:
+            return _private_json({'error': err.args[0]}, 404)
+        except ValueError as err:
+            return _private_json({'error': str(err)}, 400)
+
+    def put(self, code):
+        """
+        Saves what each contributor to this project must provide.
+        """
+        problem = editor_login_problem()
+        if problem is not None:
+            return _private_json_error(problem)
+        try:
+            project_requirements(code)
+            changes = request.get_json(silent=True)
+            # Only the requirement settings may be changed here.
+            if (not isinstance(changes, dict) or not changes
+                    or set(changes) - set(pqry.REQUIREMENT_FIELDS)):
+                raise ValueError('Send only project requirement settings.')
+            if not pqry.update(code, changes):
+                return _private_json(
+                    {'error': 'Could not update project requirements.'}, 500)
+            return _private_json({REQUIREMENTS: project_requirements(code)})
+        except KeyError as err:
+            return _private_json({'error': err.args[0]}, 404)
+        except ValueError as err:
+            return _private_json({'error': str(err)}, 400)
+
+
+def _private_json_error(problem):
+    """Turn a login-check error into a response browsers won't save."""
+    response = make_response(problem)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @projects.route(f'/{DELETE}/<code>')

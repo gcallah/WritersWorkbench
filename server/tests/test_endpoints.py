@@ -43,10 +43,11 @@ def test_endpoints_read_preserves_routes_and_methods():
     assert response.status_code == HTTPStatus.OK
     endpoint_docs = response.get_json()[ep.ENDPOINT_STR]
     assert set(endpoint_docs[f'/{ep.HELLO}']) == {'get', 'post'}
-    assert set(endpoint_docs['/editor']) == {'get'}
+    assert set(endpoint_docs['/web/projects/<code>/contributors']) == {
+        'get'}
     assert set(endpoint_docs['/api/contributors']) == {'get', 'post'}
     assert all(endpoint_docs[f'/{ep.HELLO}'].values())
-    assert endpoint_docs['/editor']['get']
+    assert endpoint_docs['/web/projects/<code>/contributors']['get']
     assert not {'/', '/swagger.json', '/swaggerui/<path:filename>',
                 '/static/<path:filename>'}.intersection(endpoint_docs)
 

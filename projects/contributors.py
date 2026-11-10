@@ -31,8 +31,8 @@ def require_volume(project_code):
     project = query.fetch_by_key(project_code)
     if project is None:
         raise KeyError('Project not found.')
-    if project[query.TYPE] != query.COLLECTION:
-        raise ValueError('Contributors require an edited-volume project.')
+    if not query.is_multi_author(project[query.TYPE]):
+        raise ValueError('Contributors need a multi-author project.')
     return project
 
 

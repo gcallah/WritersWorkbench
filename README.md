@@ -7,9 +7,11 @@ Our intention here is to create a suite of tools for professional writers.
 Start the web interface with [web.sh](web.sh) in Bash or
 [web.bat](web.bat) in Windows Command Prompt.
 
-## Contributor Editor
+## Contributors
 
-The editor is at `/editor`. Add a contributor, select **Biography** or
+Contributors belong to a project. Open **Projects** at `/web/projects` and
+select **Contributors** next to an edited volume or journal issue (the old
+standalone `/editor` page has been removed). Add a contributor, select **Biography** or
 **Submission**, enter the text, and select **Save changes**. Saving a biography
 sets that contributor's `Bio` field to `true`; saving a submission sets
 `Submission` to `true`. Existing text loads when selecting a contributor or tab.
@@ -27,7 +29,7 @@ export OUR_NAME=WritersWorkbench
 python -m flask --app server.endpoints run --host 127.0.0.1 --port 8001
 ```
 
-Open `http://127.0.0.1:8001/editor` and enter the configured username and password
+Open `http://127.0.0.1:8001/web/projects` and enter the configured username and password
 in the browser's authentication prompt. Editor access is disabled unless
 `WRITERS_EDITOR_PASSWORD` is set. These credentials are separate from the
 starter API's user accounts. Use HTTPS and a production WSGI server for any
@@ -66,10 +68,9 @@ material save.
 
 ### Contributors, files, and the existing editor
 
-Choose a book in the new **Project** selector at `/editor`, then use the existing
-Add contributor, Biography, and Submission controls. The selector lists existing
-edited volumes; create books using the existing Projects API or Python data
-module. The editor remains protected by the existing shared editor credentials.
+Select **Contributors** next to an edited volume or journal issue at
+`/web/projects`, then use the Add contributor, Biography, and Submission
+controls. Create projects on the same page or through the Projects API. The editor remains protected by the existing shared editor credentials.
 The Submission tab asks whether each paper has a referee. This change does not
 add per-user login or change the project's security model.
 
@@ -91,8 +92,8 @@ existing `Bio` and `Submission` flag names are preserved. The database also trac
 item is saved successfully. Empty template folders do not mark items received.
 
 The existing contributor endpoints accept `?project=<project-code>` to select
-a book. `/api/editor/projects` lists the edited volumes for the authenticated
-shared editor. The piece API also accepts `abstract`, `address`, `keywords`, and
+a book. A project's requirement settings are read and saved with
+`GET` and `PUT /Projects/requirements/<code>`. The piece API also accepts `abstract`, `address`, `keywords`, and
 `permission` as plain-text piece types for project-scoped requests.
 `projects.materials.save_file` accepts bytes and one of `.txt`, `.md`, `.docx`,
 or `.pdf` (up to 10 MB). The editor's document upload accepts `.docx` and
@@ -133,8 +134,8 @@ PYTHON
 ```
 
 Start the editor with the credentials shown above and `./local.sh`, then open
-`http://127.0.0.1:8000/editor`. Select the book, add a contributor, save a bio,
-and switch books to verify that their contributors stay separate. This example
+`http://127.0.0.1:8000/web/projects`. Open a book's **Contributors** page, add a
+contributor, save a bio, and check another book to verify that their contributors stay separate. This example
 creates a real development record, so run it only when you want a new book.
 
 Run `make all_tests` with `PYTHONPATH` set and the virtual environment active.
@@ -210,7 +211,7 @@ with the password it asks you to choose.
 
 ### Author requirements
 
-In `/editor`, select an edited-volume project to choose whether each author
+On an edited volume's or journal issue's **Contributors** page, choose whether each author
 must provide a biography, permission to publish, or an address. Click
 **Save requirements** to store the choices. These settings are separate from
 whether an author has already submitted each item.

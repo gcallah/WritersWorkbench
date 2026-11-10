@@ -152,12 +152,12 @@ async function loadRequirements() {
   if (!projectCode) return;
   requirementsStatus('Loading requirements...');
   try {
-    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/requirements`);
+    const data = await api(`/Projects/requirements/${encodeURIComponent(projectCode)}`);
     savedRequirements = data.requirements;
     requirementFields.forEach((field) => { byId(field).checked = savedRequirements[field]; });
     requirementsStatus('Requirements loaded.');
   } catch (error) {
-    requirementsStatus(`Could not load requirements: ${error.message} Select the project again to retry.`, true);
+    requirementsStatus(`Could not load requirements: ${error.message} Refresh the page to retry.`, true);
   }
 }
 
@@ -515,8 +515,8 @@ byId('requirements-form').addEventListener('submit', async (event) => {
   updateControls();
   requirementsStatus('Saving requirements...');
   try {
-    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/requirements`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const data = await api(`/Projects/requirements/${encodeURIComponent(projectCode)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requirementValues()),
     });
     savedRequirements = data.requirements;
@@ -534,21 +534,13 @@ async function initialize() {
   busy = true;
   updateControls();
   try {
-    try {
-      const data = await api('/api/editor/projects');
-      const selector = byId('project-select');
-      data.projects.forEach((project) => {
-        const option = document.createElement('option');
-        option.value = project.code;
-        option.textContent = `${project.name} (${project.code.slice(0, 8)})`;
-        selector.append(option);
-      });
-      projectsAvailable = true;
-      byId('project-status').textContent = data.projects.length ?
-        'Select a book to manage its contributors.' :
-        'No edited volumes yet. Create one through the Projects API.';
-    } catch (error) {
-      byId('project-status').textContent = `Could not load projects: ${error.message}`;
+    // On a project's Contributors page the project is already chosen,
+    // so load its requirements and contributors right away.
+    const pageProject = document.body.dataset.project;
+    if (pageProject) {
+      projectCode = pageProject;
+      byId('project-select').value = pageProject;
+      await loadRequirements();
     }
     await loadContributors();
   } catch (error) {
