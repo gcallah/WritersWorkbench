@@ -129,6 +129,8 @@ let projectCode = '';
 let projectsAvailable = false;
 const requirementFields = ['requires_bio', 'requires_permission', 'requires_address'];
 let savedRequirements = null;
+// The project's table of contents as last loaded or saved; null until loaded.
+let savedToc = null;
 
 function requirementValues() {
   return Object.fromEntries(requirementFields.map((field) => [field, byId(field).checked]));
@@ -161,6 +163,31 @@ async function loadRequirements() {
   }
 }
 
+function tocDirty() {
+  return savedToc !== null && byId('toc-text').value !== savedToc;
+}
+
+function tocStatus(message, error = false) {
+  byId('toc-status').textContent = message;
+  byId('toc-status').classList.toggle('error', error);
+}
+
+async function loadToc() {
+  savedToc = null;
+  byId('toc-text').value = '';
+  tocStatus('');
+  updateControls();
+  if (!projectCode) return;
+  tocStatus('Loading table of contents...');
+  try {
+    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/toc`);
+    savedToc = data.text;
+    byId('toc-text').value = savedToc;
+    tocStatus(savedToc ? 'Table of contents loaded.' : 'No table of contents yet.');
+  } catch (error) {
+    tocStatus(`Could not load the table of contents: ${error.message} Select the project again to retry.`, true);
+  }
+}
 
 async function api(path, options = {}) {
   const url = new URL(path, location.origin);
@@ -205,12 +232,12 @@ function documentPending() {
 }
 
 function dirty() {
-  return pieceDirty() || refereeDirty() || documentPending() || requirementsDirty();
+  return pieceDirty() || refereeDirty() || documentPending() || requirementsDirty() || tocDirty();
 }
 
 function allowDiscard(includeRequirements = false) {
   const unsaved = pieceDirty() || refereeDirty() || documentPending() ||
-    (includeRequirements && requirementsDirty());
+    (includeRequirements && (requirementsDirty() || tocDirty()));
   return !unsaved || confirm('Discard unsaved changes?');
 }
 
@@ -231,6 +258,10 @@ function updateControls() {
   byId('requirements-form').hidden = !projectCode;
   byId('requirements-fields').disabled = busy || creating || savedRequirements === null;
   byId('requirements-save').disabled = busy || creating || !requirementsDirty();
+  byId('toc-form').hidden = !projectCode;
+  byId('toc-text').disabled = busy || creating || savedToc === null;
+  byId('toc-file').disabled = busy || creating || savedToc === null;
+  byId('toc-save').disabled = busy || creating || !tocDirty() || !byId('toc-text').value.trim();
   byId('add').disabled = busy;
   tabs.forEach((tab) => {
     if ('projectOnly' in tab.dataset) tab.hidden = !projectCode;
@@ -478,6 +509,7 @@ byId('project-select').addEventListener('change', async () => {
   projectCode = selector.value;
   clearDocumentUpload();
   savedRequirements = null;
+  savedToc = null;
   selected = null;
   contributors = [];
   savedText = '';
@@ -491,6 +523,7 @@ byId('project-select').addEventListener('change', async () => {
   status('Loading contributors...');
   try {
     await loadRequirements();
+    await loadToc();
     await loadContributors();
     if (!contributors.length) status('Add a contributor to this project.');
   } catch (error) {
@@ -523,6 +556,71 @@ byId('requirements-form').addEventListener('submit', async (event) => {
     requirementsStatus('Requirements saved.');
   } catch (error) {
     requirementsStatus(error.message, true);
+  } finally {
+    busy = false;
+    updateControls();
+  }
+});
+
+byId('toc-text').addEventListener('input', () => {
+  tocStatus(tocDirty() ? 'Unsaved changes' : 'Table of contents unchanged');
+  updateControls();
+});
+
+// Choosing a .md file only fills the box; the editor reviews it and then saves.
+byId('toc-file').addEventListener('change', async () => {
+  const input = byId('toc-file');
+  const file = input.files[0];
+  input.value = '';  // so choosing the same file again still triggers this
+  if (!file || busy || creating || !projectCode || savedToc === null) return;
+  if (!/\.(md|markdown)$/i.test(file.name)) {
+    tocStatus('Choose a .md (markdown) file.', true);
+    return;
+  }
+  if (file.size > 1_000_000) {
+    tocStatus('That file is too large. Use at most 100,000 characters.', true);
+    return;
+  }
+  const project = projectCode;
+  let text;
+  try {
+    const bytes = await file.arrayBuffer();
+    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/\r\n?/g, '\n');
+  } catch (error) {
+    tocStatus('Could not read that file. Save it as UTF-8 text and try again.', true);
+    return;
+  }
+  if (project !== projectCode) return;  // the project changed while reading
+  if (!text.trim()) {
+    tocStatus('That file is empty.', true);
+    return;
+  }
+  if (text.length > 100000) {
+    tocStatus('That file is too long. Use at most 100,000 characters.', true);
+    return;
+  }
+  const current = byId('toc-text').value;
+  if (current.trim() && current !== text && !confirm('Replace the text in the box with this file?')) return;
+  byId('toc-text').value = text;
+  tocStatus(`Loaded ${file.name}. Review it, then select Save table of contents.`);
+  updateControls();
+});
+
+byId('toc-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (busy || creating || !projectCode || !tocDirty() || !byId('toc-text').value.trim()) return;
+  busy = true;
+  updateControls();
+  tocStatus('Saving table of contents...');
+  try {
+    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/toc`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: byId('toc-text').value }),
+    });
+    savedToc = data.text;
+    tocStatus('Table of contents saved.');
+  } catch (error) {
+    tocStatus(error.message, true);
   } finally {
     busy = false;
     updateControls();

@@ -38,6 +38,20 @@
         </fieldset>
         <p id="requirements-status" role="status" aria-live="polite"></p>
       </form>
+      <form id="toc-form" class="project-toc" hidden>
+        <label for="toc-text">Table of contents (markdown)</label>
+        <div class="toc-upload">
+          <label class="file-picker" for="toc-file">
+            <i data-lucide="file-up" aria-hidden="true"></i>
+            <span>Upload a .md file</span>
+          </label>
+          <input id="toc-file" type="file" accept=".md,.markdown,text/markdown" disabled>
+        </div>
+        <textarea id="toc-text" maxlength="100000" spellcheck="true" disabled
+          placeholder="# Contents&#10;&#10;1. Introduction&#10;2. Chapter one"></textarea>
+        <button type="submit" id="toc-save" class="secondary" disabled>Save table of contents</button>
+        <p id="toc-status" role="status" aria-live="polite"></p>
+      </form>
       <div class="section-heading">
         <h1 id="directory-title">Contributors <span id="count">0</span></h1>
         <button id="add" class="icon-button" aria-label="Add contributor" title="Add contributor">

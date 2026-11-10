@@ -11,6 +11,7 @@ from projects import query as projects_query
 
 editor = Blueprint('editor', __name__, template_folder='templates')
 MAX_UPLOAD_BYTES = 10_000_000
+MAX_TOC_CHARS = 100_000
 
 
 def _store():
@@ -187,3 +188,32 @@ def save_requirements(code):
     if not projects_query.update(code, changes):
         raise OSError('Could not update project requirements.')
     return jsonify(requirements=_volume_requirements(code))
+
+
+@editor.get('/api/editor/projects/<code>/toc')
+def read_toc(code):
+    """Read the markdown table of contents for an edited volume."""
+    project = projects_query.fetch_by_key(code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if project[projects_query.TYPE] != projects_query.COLLECTION:
+        raise ValueError('Table of contents requires an edited-volume project.')
+    return jsonify(text=project.get('toc') or '')
+
+
+@editor.post('/api/editor/projects/<code>/toc')
+def save_toc(code):
+    """Save markdown table of contents for an edited volume."""
+    project = projects_query.fetch_by_key(code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if project[projects_query.TYPE] != projects_query.COLLECTION:
+        raise ValueError('Table of contents requires an edited-volume project.')
+    text = _payload().get('text')
+    if text is None:
+        raise ValueError('Send the table of contents text.')
+    if len(text) > MAX_TOC_CHARS:
+        raise ValueError('Table of contents must be at most 100,000 characters.')
+    if not projects_query.update(code, {'toc': text}):
+        raise OSError('Could not update table of contents.')
+    return jsonify(text=text)
