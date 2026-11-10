@@ -117,8 +117,8 @@ a book, moved, or deleted. A future explicit migration can associate old data.
 
 **Retention and failures:** project deletion removes the project record, but
 retains its documents and contributor records for recovery. It does not delete
-manuscripts automatically. Changing a collection to another type also retains
-its material, but removes it from the edited-volume selector. Back up both the
+manuscripts automatically. The project type is fixed at creation. To switch types,
+delete the project and create a new one; its files do not transfer. Back up the
 database and the project files. File writes replace files atomically; database
 and file writes are not a single transaction. If the file succeeds but the
 receipt update fails, the request reports failure and can be retried. As with

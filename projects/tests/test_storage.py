@@ -25,15 +25,15 @@ def test_collection_creation_and_rename():
     assert manuscript.read_text() == 'Keep this draft'
 
 
-def test_other_project_and_conversion():
+def test_rejected_conversion_leaves_directory_untouched():
     code = query.add(query.TEST_SAMPLE)
     try:
         directory = storage.project_directory(code)
         assert directory.is_dir()
         assert not list(directory.iterdir())
-        query.update(code, {query.TYPE: query.COLLECTION,
-                      'requires_keywords': True})
-        assert (directory / 'chapters').is_dir()
+        with pytest.raises(ValueError, match='type cannot change'):
+            query.update(code, {query.TYPE: query.COLLECTION})
+        assert not list(directory.iterdir())
     finally:
         query.delete(code)
 

@@ -3,7 +3,7 @@ A simple web interface for the Writer's Workbench (issue #4).
 
 Before this, projects could only be managed through the JSON API or by
 running Python code. These pages let someone do the same things from a
-browser: see all projects, create one, rename it or change its type, and
+browser: see all projects, create one, rename it or edit its authors, and
 delete it.
 
 The pages live under /web so they don't collide with the API's Swagger
@@ -161,7 +161,7 @@ def project_create():
 
 @web.get('/projects/<code>/edit')
 def project_edit(code):
-    """Show the form for renaming a project or changing its type."""
+    """Show the form for renaming a project and editing its authors."""
     project = _project_or_none(code)
     if project is None:
         flash('That project no longer exists.', 'error')
@@ -188,10 +188,9 @@ def project_update(code):
     if _project_or_none(code) is None:
         flash('That project no longer exists.', 'error')
         return redirect(url_for('web.project_list'))
-    changes = {
-        pqry.NAME: request.form.get(pqry.NAME, '').strip(),
-        pqry.TYPE: request.form.get(pqry.TYPE, ''),
-    }
+    changes = {pqry.NAME: request.form.get(pqry.NAME, '').strip()}
+    if pqry.TYPE in request.form:
+        changes[pqry.TYPE] = request.form[pqry.TYPE]
     author_names = _author_names_from_form()
     try:
         # Check the author names first, so a bad name saves nothing.

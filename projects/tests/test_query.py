@@ -112,10 +112,10 @@ def test_fetch_by_user_not_there():
 
 def test_update(temp_project):
     NEW_NAME = 'A new name'
-    qry.update(temp_project, {qry.NAME: NEW_NAME, qry.TYPE: qry.ESSAY})
+    qry.update(temp_project, {qry.NAME: NEW_NAME, qry.TYPE: qry.SOLO_BOOK})
     proj = qry.fetch_by_key(temp_project)
     assert proj[qry.NAME] == NEW_NAME
-    assert proj[qry.TYPE] == qry.ESSAY
+    assert proj[qry.TYPE] == qry.SOLO_BOOK
     assert proj[qry.USER] == qry.TEST_USER
 
 

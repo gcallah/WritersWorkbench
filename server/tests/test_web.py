@@ -127,13 +127,24 @@ def test_create_list_edit_delete(client):
                           headers=_login_header())
     assert name.encode() in response.data
 
-    # Rename and change type.
-    new_name = 'Web Test Essay'
+    assert b'name="type"' not in response.data
+    assert b'Edited volume (multi-author)' in response.data
+
+    # A crafted request must not change the type, name, or author list.
+    response = client.post(f'/web/projects/{code}/edit',
+                           headers=_login_header(), follow_redirects=True,
+                           data={'name': 'Unexpected rename',
+                                 'type': pqry.ESSAY, 'authors': 'Someone'})
+    assert b'type cannot change' in response.data
+    assert pqry.fetch_by_key(code)[pqry.NAME] == name
+    assert not pp.fetch_authors(code)
+
+    new_name = 'Renamed Volume'
     client.post(f'/web/projects/{code}/edit', headers=_login_header(),
-                data={'name': new_name, 'type': pqry.ESSAY})
+                data={'name': new_name})
     project = pqry.fetch_by_key(code)
     assert project[pqry.NAME] == new_name
-    assert project[pqry.TYPE] == pqry.ESSAY
+    assert project[pqry.TYPE] == pqry.COLLECTION
 
     # Delete.
     client.post(f'/web/projects/{code}/delete', headers=_login_header())

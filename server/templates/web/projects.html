@@ -14,7 +14,7 @@
     <h2>Create a project</h2>
     <label for="name">Project name</label>
     <input id="name" name="name" required maxlength="200">
-    <label for="type">Project type</label>
+    <label for="type">Project type (cannot be changed later)</label>
     <select id="type" name="type">
       {% for value, label in type_choices.items() %}
         <option value="{{ value }}">{{ label }}</option>

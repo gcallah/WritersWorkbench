@@ -154,9 +154,10 @@ def test_project_update_not_there():
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_project_update_bad_type(temp_project):
+@pytest.mark.parametrize('new_type', ['not a type', ep.pqry.COLLECTION])
+def test_project_update_bad_type(temp_project, new_type):
     resp = TEST_CLIENT.put(f'{ep.PROJ_UPDATE_W_NS}/{temp_project}',
-                           json={ep.pqry.TYPE: 'not a type'},
+                           json={ep.pqry.TYPE: new_type},
                            query_string=USER_PARAM, headers=AUTH_HDRS)
     assert resp.status_code == HTTPStatus.NOT_ACCEPTABLE
 

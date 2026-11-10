@@ -165,7 +165,7 @@ def add(project: dict):
 def update(code, update_dict: dict):
     """
     Update the fields in update_dict for the project with this code.
-    The code itself can't be changed.
+    The code and original project type cannot change.
     """
     if CODE in update_dict:
         raise ValueError(f'Project {CODE} can not be updated.')
@@ -176,6 +176,9 @@ def update(code, update_dict: dict):
     existing = fetch_by_key(code)
     if existing is None:
         raise ValueError(f'No project with code {code}')
+    if TYPE in update_dict and update_dict[TYPE] != existing[TYPE]:
+        raise ValueError('Project type cannot change after creation. '
+                         'Delete this project and create one of the new type.')
     settings = {**existing, **update_dict}
     prepare_project(code, settings[TYPE] == COLLECTION, settings)
     return get_cache(COLLECT).update(code, update_dict)

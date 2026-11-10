@@ -38,7 +38,7 @@ proj_parser.add_argument(pqry.USER, location='args', required=True)
 
 PROJECT_FLDS = projects.model('Project', {
     pqry.NAME: fields.String,
-    pqry.TYPE: fields.String,
+    pqry.TYPE: fields.String(description='Set at creation; cannot change.'),
     **dict.fromkeys(pqry.REQUIREMENT_FIELDS, fields.Boolean),
 })
 
