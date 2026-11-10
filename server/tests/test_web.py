@@ -1,6 +1,7 @@
 """Tests for the projects web interface (issue #4)."""
 from base64 import b64encode
 from uuid import uuid4
+from unittest.mock import Mock
 
 import pytest
 
@@ -11,6 +12,56 @@ from server.endpoints import app
 
 USERNAME = 'editor'
 PASSWORD = 'test-password'
+
+
+@pytest.mark.parametrize('prompt', [False, True])
+def test_command_line_startup(monkeypatch, tmp_path, prompt):
+    from server import __main__ as cli
+
+    for name in ('DATABASE', 'OUR_NAME', 'WRITERS_EDITOR_USERNAME',
+                 'WRITERS_EDITOR_PASSWORD', 'PORT'):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('SQLITE_LOC', str(tmp_path / 'database'))
+    if not prompt:
+        monkeypatch.setenv('WRITERS_EDITOR_PASSWORD', PASSWORD)
+    password_prompt = Mock(return_value=PASSWORD)
+    run = Mock()
+    monkeypatch.setattr(cli, 'getpass', password_prompt)
+    monkeypatch.setattr(app, 'run', run)
+    monkeypatch.setitem(app.config, 'EDITOR_USERNAME', USERNAME)
+    monkeypatch.setitem(app.config, 'EDITOR_PASSWORD', PASSWORD)
+
+    cli.main(['--host', '127.0.0.1', '--port', '8123'] if prompt else [])
+
+    run.assert_called_once_with(host='127.0.0.1',
+                                port=8123 if prompt else 8002)
+    assert cli.os.environ['DATABASE'] == 'sqlite'
+    assert (tmp_path / 'database').is_dir()
+    assert app.config['EDITOR_PASSWORD'] == PASSWORD
+    assert app.config['EDITOR_USERNAME'] == USERNAME
+    if prompt:
+        password_prompt.assert_called_once()
+    else:
+        password_prompt.assert_not_called()
+
+
+def test_command_line_rejects_empty_password(monkeypatch):
+    from server import __main__ as cli
+
+    monkeypatch.delenv('WRITERS_EDITOR_PASSWORD', raising=False)
+    monkeypatch.setattr(cli, 'getpass', Mock(return_value='  '))
+    with pytest.raises(SystemExit) as error:
+        cli.main([])
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize('port', ['0', '65536', 'not-a-port'])
+def test_command_line_rejects_invalid_port(port):
+    from server import __main__ as cli
+
+    with pytest.raises(SystemExit) as error:
+        cli.main(['--port', port])
+    assert error.value.code == 2
 
 
 def _login_header(username=USERNAME, password=PASSWORD):

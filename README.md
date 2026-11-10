@@ -4,6 +4,21 @@ Our intention here is to create a suite of tools for professional writers.
 
 ## Running Locally
 
+With the Python environment activated and requirements installed, run this
+command from the repository root:
+
+```bash
+python -m server
+```
+
+Open `http://127.0.0.1:8002/web/` and log in as `editor` with the password
+you enter at the prompt. Set `WRITERS_EDITOR_PASSWORD` beforehand to skip
+the prompt, and `WRITERS_EDITOR_USERNAME` to change the login name.
+The command defaults to local SQLite storage and preserves existing database
+environment settings. Use `python -m server --port 9000` to change the port;
+`--host` defaults to `127.0.0.1`. This is a local development server, not a
+production deployment.
+
 Start the web interface with [web.sh](web.sh) in Bash or
 [web.bat](web.bat) in Windows Command Prompt.
 
