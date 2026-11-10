@@ -62,12 +62,12 @@ def require_login():
     # For form submissions, only accept ones that came from our own site,
     # so another website can't trick a logged-in browser into deleting
     # projects.
-    if request.method == 'POST' and not _same_site_form():
+    if request.method == 'POST' and not same_site_request():
         return 'Cross-site form submissions are not allowed.', 403
     return None
 
 
-def _same_site_form():
+def same_site_request():
     """
     Checks whether a submitted form came from one of our own pages.
 
@@ -108,7 +108,7 @@ def _project_or_none(code):
 
 @web.get('/')
 def home():
-    """The landing page, with links to the projects page and the editor."""
+    """The landing page, with a link to the projects page."""
     return render_template('web/home.html')
 
 
@@ -126,6 +126,7 @@ def project_list():
     }
     return render_template('web/projects.html',
                            projects=all_projects,
+                           multi_author_types=pqry.MULTI_AUTHOR_TYPES,
                            authors_by_code=authors_by_code,
                            type_choices=pqry.get_type_choices())
 
@@ -200,6 +201,27 @@ def project_update(code):
         return redirect(url_for('web.project_edit', code=code))
     flash(f'Saved "{changes[pqry.NAME]}".', 'success')
     return redirect(url_for('web.project_list'))
+
+
+@web.get('/projects/<code>/contributors')
+def project_contributors(code):
+    """
+    Show a project's contributors and their materials (bios, submissions,
+    and so on). This replaces the old standalone contributor editor:
+    contributors now live inside their project (issue #22).
+    """
+    project = _project_or_none(code)
+    if project is None:
+        flash('That project no longer exists.', 'error')
+        return redirect(url_for('web.project_list'))
+    # Only edited volumes and journal issues have contributors.
+    if not pqry.is_multi_author(project[pqry.TYPE]):
+        flash('Only edited volumes and journal issues have contributors.',
+              'error')
+        return redirect(url_for('web.project_list'))
+    # The contributor workspace is the same page the old editor used,
+    # now locked to this one project.
+    return render_template('editor.html', project=project)
 
 
 @web.post('/projects/<code>/delete')

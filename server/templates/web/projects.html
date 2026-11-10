@@ -7,6 +7,7 @@
   <ol class="steps">
     <li>Create a project by giving it a name and a type.</li>
     <li>Add its authors on the project's page. You can change them any time with <strong>Edit</strong>.</li>
+    <li>For an edited volume or journal issue, use <strong>Contributors</strong> to collect each contributor's bio, submission, and other materials.</li>
   </ol>
 
   {# Form for adding a new project. It sends a POST to /web/projects. #}
@@ -49,6 +50,9 @@
               </td>
               <td>{{ project.user }}</td>
               <td class="actions">
+                {% if project.type in multi_author_types %}
+                  <a class="button" href="{{ url_for('web.project_contributors', code=project.code) }}">Contributors</a>
+                {% endif %}
                 <a class="button" href="{{ edit_url }}">Edit</a>
                 {# confirm() pops up "are you sure?" before deleting. #}
                 <form method="post" action="{{ url_for('web.project_delete', code=project.code) }}"

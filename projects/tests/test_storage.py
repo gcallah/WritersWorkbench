@@ -48,3 +48,13 @@ def test_failed_folder_creation_does_not_add_project(monkeypatch):
     with pytest.raises(OSError):
         query.add(query.TEST_SAMPLE)
     assert query.fetch_codes() == before
+
+
+def test_journal_issue_gets_volume_folders():
+    code = query.add({**query.TEST_SAMPLE, query.TYPE: query.JOURNAL_ISSUE})
+    try:
+        directory = storage.project_directory(code)
+        assert {p.name for p in directory.iterdir()} == set(
+            storage.VOLUME_FOLDERS)
+    finally:
+        query.delete(code)

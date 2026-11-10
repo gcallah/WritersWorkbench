@@ -89,3 +89,13 @@ def test_referee_answer_must_be_boolean(volume, answer):
     person = people.add(volume, 'Ada')
     with pytest.raises(ValueError, match='Referee answer'):
         people.set_referee(volume, person['id'], answer)
+
+
+def test_journal_issue_accepts_contributors():
+    code = query.add({**query.TEST_SAMPLE, query.TYPE: query.JOURNAL_ISSUE})
+    try:
+        person = people.add(code, 'Ada')
+        assert people.fetch_list(code) == [person]
+        get_cache(people.COLLECT).delete(person['id'])
+    finally:
+        query.delete(code)

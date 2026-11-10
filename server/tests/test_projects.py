@@ -264,7 +264,8 @@ def test_editor_rejects_unsupported_or_missing_document(editor_client,
     assert response.status_code == 400
 
 
-@pytest.mark.parametrize('url', ['/editor', '/api/contributors'])
+@pytest.mark.parametrize('url', ['/Projects/requirements/missing',
+                                 '/api/contributors'])
 def test_editor_requires_authentication(editor_client, url):
     response = editor_client.get(url, headers={'Authorization': ''})
     assert response.status_code == 401
@@ -274,7 +275,7 @@ def test_editor_requires_authentication(editor_client, url):
 
 def test_editor_disabled_without_password(editor_client, monkeypatch):
     monkeypatch.setitem(app.config, 'EDITOR_PASSWORD', None)
-    assert editor_client.get('/editor').status_code == 503
+    assert editor_client.get('/api/contributors').status_code == 503
 
 
 def test_wrong_editor_password_cannot_write(editor_client):
@@ -316,14 +317,26 @@ def test_api_storage_failure(editor_client):
 def test_endpoint_listing_still_works_with_editor_routes(editor_client):
     response = editor_client.get('/Endpoints/read')
     assert response.status_code == 200
-    assert '/editor' in response.get_json()['Available endpoints']
+    assert ('/web/projects/<code>/contributors'
+            in response.get_json()['Available endpoints'])
+
+
+def test_old_editor_page_is_gone(editor_client):
+    # Issue #22: contributors now live on each project's page.
+    assert editor_client.get('/editor').status_code == 404
 
 
 def test_editor_page_and_assets(editor_client):
-    response = editor_client.get('/editor')
+    code = projects_query.add({**projects_query.TEST_SAMPLE,
+                               projects_query.TYPE: projects_query.COLLECTION})
+    try:
+        response = editor_client.get(f'/web/projects/{code}/contributors')
+    finally:
+        projects_query.delete(code)
     assert response.status_code == 200
     assert b'Writer\'s Workbench' in response.data
     assert b'id="piece-text"' in response.data
+    assert f'data-project="{code}"'.encode() in response.data
     assert editor_client.get('/static/editor.js').status_code == 200
     assert editor_client.get('/static/editor.css').status_code == 200
 
@@ -350,9 +363,6 @@ def test_editor_project_selection_and_isolation(editor_client, edited_books):
     from projects.storage import project_directory
 
     first, second = edited_books
-    response = editor_client.get('/api/editor/projects')
-    assert response.status_code == 200
-    assert {first, second} <= {p['code'] for p in response.json['projects']}
     created = editor_client.post('/api/contributors',
                                  query_string={'project': first},
                                  json={'name': 'Ada'})
@@ -376,7 +386,8 @@ def test_editor_project_selection_and_isolation(editor_client, edited_books):
         'contributors': []}
     # The existing unassigned editor still uses its original files.
     assert editor_client.get('/api/contributors').json == {'contributors': []}
-    assert b'id="project-select"' in editor_client.get('/editor').data
+    page = editor_client.get(f'/web/projects/{first}/contributors')
+    assert b'id="project-select"' in page.data
 
 
 @patch('server.editor.ProjectContributorStore', autospec=True)
@@ -394,31 +405,6 @@ def test_project_query_uses_project_contributor_store(
     mock_project_store.return_value.list_contributors.assert_called_once_with()
 
 
-@patch('server.editor.ProjectContributorStore', autospec=True)
-def test_project_list_filters_and_sorts_edited_volumes(
-        mock_project_store, editor_client):
-    mock_project_store.side_effect = AssertionError(
-        'Listing volumes should not create a contributor store.')
-    projects = [
-        {projects_query.CODE: 'a', projects_query.NAME: 'zeta',
-         projects_query.TYPE: projects_query.COLLECTION},
-        {projects_query.CODE: 'b', projects_query.NAME: 'Essay',
-         projects_query.TYPE: projects_query.ESSAY},
-        {projects_query.CODE: 'c', projects_query.NAME: 'Alpha',
-         projects_query.TYPE: projects_query.COLLECTION},
-    ]
-
-    with patch('server.editor.projects_query.fetch_list',
-               autospec=True, return_value=projects) as mock_fetch:
-        response = editor_client.get('/api/editor/projects')
-
-    assert response.status_code == 200
-    assert [project[projects_query.CODE]
-            for project in response.json['projects']] == ['c', 'a']
-    mock_fetch.assert_called_once_with()
-    mock_project_store.assert_not_called()
-
-
 @patch('server.editor.ProjectContributorStore', autospec=True,
        side_effect=KeyError('Project not found.'))
 def test_unknown_project_does_not_fall_back_to_legacy(
@@ -430,6 +416,6 @@ def test_unknown_project_does_not_fall_back_to_legacy(
     assert editor_client.get('/api/contributors').json == {'contributors': []}
 
 
-def test_project_list_requires_editor_auth(editor_client):
-    assert editor_client.get('/api/editor/projects',
+def test_requirements_require_editor_auth(editor_client):
+    assert editor_client.get('/Projects/requirements/missing',
                              headers={'Authorization': ''}).status_code == 401

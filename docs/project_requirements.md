@@ -39,10 +39,13 @@ omit these fields. Pre-fill edit forms from `fetch_by_key()`.
 The existing Projects API accepts and documents the same optional fields. Its
 current access controls are unchanged. The contributor editor instead uses:
 
-- GET `/api/editor/projects/<code>/requirements`
-- POST `/api/editor/projects/<code>/requirements`
+- GET `/Projects/requirements/<code>`
+- PUT `/Projects/requirements/<code>`
 
-These use the editor's existing shared Basic Auth. POST requires same-origin
+(These moved from `/api/editor/projects/<code>/requirements` into the Projects
+API in issue #22.)
+
+These use the editor's existing shared Basic Auth. PUT requires same-origin
 JSON, containing only one or more of the three boolean settings. Responses are
 `{"requirements": {"requires_bio": false, "requires_permission": false,
 "requires_address": false}}`. Missing projects return 404. Non-edited-volume

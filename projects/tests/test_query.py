@@ -20,7 +20,8 @@ def temp_project():
 def test_get_type_choices():
     choices = qry.get_type_choices()
     assert isinstance(choices, dict)
-    for proj_type in [qry.SOLO_BOOK, qry.COLLECTION, qry.ESSAY]:
+    for proj_type in [qry.SOLO_BOOK, qry.COLLECTION, qry.ESSAY,
+                      qry.JOURNAL_ISSUE]:
         assert proj_type in choices
 
 
@@ -147,3 +148,10 @@ def test_delete(temp_project):
 def test_delete_not_there():
     with pytest.raises(ValueError):
         qry.delete('not an existing code')
+
+
+def test_is_multi_author():
+    assert qry.is_multi_author(qry.COLLECTION)
+    assert qry.is_multi_author(qry.JOURNAL_ISSUE)
+    assert not qry.is_multi_author(qry.SOLO_BOOK)
+    assert not qry.is_multi_author(qry.ESSAY)

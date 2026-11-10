@@ -84,7 +84,7 @@ dialog label { display: block; margin-bottom: 8px; font-size: 12px; }
 @media (max-width: 800px) {
   .masthead { padding: 18px 22px; min-height: 74px; }
   .brand { font-size: 22px; }
-  .desk-label { display: none; }
+  .desk-label { border-left: 0; padding-left: 0; }
   main { grid-template-columns: 230px minmax(0, 1fr); }
   .directory { padding: 26px 16px; }
   .workspace { padding: 30px 24px; }
@@ -127,3 +127,8 @@ dialog label { display: block; margin-bottom: 8px; font-size: 12px; }
   .referee-control { align-items: stretch; flex-wrap: wrap; }
   .referee-control select { flex: 1 1 160px; }
 }
+
+/* Issue #22: the page belongs to one project, shown at the top. */
+.project-name { font-family: Georgia, serif; font-size: 22px; margin: 0 0 18px; }
+a.desk-label { text-decoration: none; }
+a.desk-label:hover { color: var(--ink); }
