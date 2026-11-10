@@ -66,18 +66,14 @@ writes must be same-origin. Failed saves keep the browser draft available.
 The existing `collection` type is displayed as **Edited volume (multi-author)**.
 Creating a project through `projects.query.add` or `/Projects/create` creates
 its directory. Other project types get an empty directory; edited volumes get
-these folders, following [JustifyingTheState](https://github.com/gcallah/JustifyingTheState):
+core folders `chapters`, `drafts` and `Proposal`, following
+[JustifyingTheState](https://github.com/gcallah/JustifyingTheState).
+An edited volume also gets folders for the author components selected at
+creation. Saving an optional submission later creates just its folder.
+Existing folders and manuscripts are kept when requirements change.
 
-- `abstracts`, `addresses`, `bios`, `chapters`, `keywords`, `permissions`
-- `drafts` and `Proposal`
-
-We copy the folder pattern, not the example book's authors or documents.
 Project folders default to `instance/projects/<project-code>/`. Set
-`WRITERS_PROJECTS_DIR` to change that root, consistently for both the API and
-command-line use. Codes remain stable when a project is renamed. Changing a
-project to `collection` also creates any missing template folders. Existing
-collections created before this change get their folders on an update or first
-material save.
+`WRITERS_PROJECTS_DIR` to change that root. Codes remain stable on rename.
 
 ### Contributors, files, and the existing editor
 
@@ -225,8 +221,9 @@ with the password it asks you to choose.
 
 ### Author requirements
 
-In `/editor`, select an edited-volume project to choose whether each author
-must provide a biography, permission to publish, or an address. Click
+Choose biography, permission to publish, address, abstract, or keywords when
+creating an edited volume at `/web/projects`. To revise the choices in
+`/editor`, select the volume and click
 **Save requirements** to store the choices. These settings are separate from
 whether an author has already submitted each item.
 See [project requirement settings](docs/project_requirements.md) for API fields,

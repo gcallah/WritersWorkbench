@@ -126,6 +126,8 @@ def project_list():
     }
     return render_template('web/projects.html',
                            projects=all_projects,
+                           components=pqry.AUTHOR_COMPONENTS,
+                           collection_type=pqry.COLLECTION,
                            authors_by_code=authors_by_code,
                            type_choices=pqry.get_type_choices())
 
@@ -139,6 +141,9 @@ def project_create():
         pqry.TYPE: request.form.get(pqry.TYPE, ''),
         pqry.USER: _current_user(),
     }
+    if new_project[pqry.TYPE] == pqry.COLLECTION:
+        new_project.update({field: field in request.form
+                            for field in pqry.REQUIREMENT_FIELDS})
     try:
         code = pqry.add(new_project)
     except ValueError as err:

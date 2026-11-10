@@ -281,3 +281,25 @@ def test_list_shows_authors(client, project_code):
         assert f'<li>{name}</li>'.encode() in response.data
     finally:
         _delete_authors([name])
+
+
+def test_create_edited_volume_with_selected_components(client):
+    from projects.storage import project_directory
+    headers = _login_header()
+    form = client.get('/web/projects', headers=headers)
+    for field in pqry.REQUIREMENT_FIELDS:
+        assert f'name="{field}"'.encode() in form.data
+    name = 'Volume with abstracts and keywords'
+    client.post('/web/projects', headers=headers, data={
+        'name': name, 'type': pqry.COLLECTION,
+        'requires_abstract': 'on', 'requires_keywords': 'on'})
+    code, = _codes_named(name)
+    try:
+        project = pqry.fetch_by_key(code)
+        assert project['requires_abstract'] and project['requires_keywords']
+        assert not project['requires_bio']
+        folders = {p.name for p in project_directory(code).iterdir()}
+        assert folders == {'chapters', 'drafts', 'Proposal',
+                           'abstracts', 'keywords'}
+    finally:
+        pqry.delete(code)

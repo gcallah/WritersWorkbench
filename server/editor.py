@@ -98,7 +98,8 @@ def request_failure(error):
 @editor.get('/editor')
 def editor_page():
     """Display the contributor workbench."""
-    return render_template('editor.html')
+    return render_template('editor.html',
+                           components=projects_query.AUTHOR_COMPONENTS)
 
 
 @editor.get('/api/contributors')

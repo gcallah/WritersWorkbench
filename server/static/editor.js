@@ -127,7 +127,7 @@ let busy = false;
 let creating = false;
 let projectCode = '';
 let projectsAvailable = false;
-const requirementFields = ['requires_bio', 'requires_permission', 'requires_address'];
+const requirementFields = Array.from(document.querySelectorAll('[data-requirement]'), el => el.id);
 let savedRequirements = null;
 // The project's table of contents as last loaded or saved; null until loaded.
 let savedToc = null;

@@ -20,6 +20,20 @@
         <option value="{{ value }}">{{ label }}</option>
       {% endfor %}
     </select>
+    <fieldset id="volume-components" data-type="{{ collection_type }}">
+      <legend>What must each author provide? (Edited volumes only)</legend>
+      {% include "author_components.html" %}
+      <p class="hint">Choose the folders to create now. You can change these requirements later.</p>
+    </fieldset>
+    <script>
+      const projectType = document.getElementById('type');
+      const components = document.getElementById('volume-components');
+      function showVolumeComponents() {
+        components.hidden = components.disabled = projectType.value !== components.dataset.type;
+      }
+      projectType.addEventListener('change', showVolumeComponents);
+      showVolumeComponents();
+    </script>
     <button class="primary" type="submit">Create project</button>
     <p class="hint">Next, you'll add the project's authors.</p>
   </form>

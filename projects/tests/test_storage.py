@@ -5,14 +5,19 @@ from projects import query, storage
 
 
 def test_collection_creation_and_rename():
-    code = query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION})
+    code = query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION,
+                      'requires_keywords': True})
     try:
         directory = storage.project_directory(code)
-        assert {p.name for p in directory.iterdir()} == set(
-            storage.VOLUME_FOLDERS)
+        assert {p.name for p in directory.iterdir()} == {
+            'chapters', 'drafts', 'Proposal', 'keywords'}
         manuscript = directory / 'chapters' / 'draft.txt'
         manuscript.write_text('Keep this draft')
-        query.update(code, {query.NAME: 'New title'})
+        query.update(code, {query.NAME: 'New title', 'requires_abstract': True,
+                            'requires_keywords': False})
+        assert (directory / 'abstracts').is_dir()
+        assert (directory / 'keywords').is_dir()
+        assert not (directory / 'bios').exists()
         assert manuscript.read_text() == 'Keep this draft'
     finally:
         query.delete(code)
@@ -26,8 +31,9 @@ def test_other_project_and_conversion():
         directory = storage.project_directory(code)
         assert directory.is_dir()
         assert not list(directory.iterdir())
-        query.update(code, {query.TYPE: query.COLLECTION})
-        assert (directory / 'bios').is_dir()
+        query.update(code, {query.TYPE: query.COLLECTION,
+                      'requires_keywords': True})
+        assert (directory / 'chapters').is_dir()
     finally:
         query.delete(code)
 

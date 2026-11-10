@@ -1,0 +1,3 @@
+{% for field, (label, folder) in components.items() %}
+  <label><input type="checkbox" name="{{ field }}" id="{{ field }}" data-requirement> {{ label }}</label>
+{% endfor %}

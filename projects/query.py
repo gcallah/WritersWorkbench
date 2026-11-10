@@ -7,7 +7,7 @@ from uuid import uuid4
 from backendcore.data.caching import needs_cache, get_cache
 import backendcore.data.fields as cflds
 
-from projects.storage import prepare_project
+from projects.storage import AUTHOR_COMPONENTS, prepare_project
 
 DB = 'projectsDB'
 COLLECT = 'Projects'
@@ -24,7 +24,7 @@ REQUIRED_FLDS = [NAME, USER, TYPE]
 REQUIRES_BIO = 'requires_bio'
 REQUIRES_PERMISSION = 'requires_permission'
 REQUIRES_ADDRESS = 'requires_address'
-REQUIREMENT_FIELDS = (REQUIRES_BIO, REQUIRES_PERMISSION, REQUIRES_ADDRESS)
+REQUIREMENT_FIELDS = tuple(AUTHOR_COMPONENTS)
 
 
 def _check_requirements(project):
@@ -156,7 +156,7 @@ def add(project: dict):
     _check_requirements(project)
     project = _with_requirements(project)
     project[CODE] = uuid4().hex
-    prepare_project(project[CODE], project[TYPE] == COLLECTION)
+    prepare_project(project[CODE], project[TYPE] == COLLECTION, project)
     get_cache(COLLECT).add(project)
     return project[CODE]
 
@@ -176,7 +176,8 @@ def update(code, update_dict: dict):
     existing = fetch_by_key(code)
     if existing is None:
         raise ValueError(f'No project with code {code}')
-    prepare_project(code, update_dict.get(TYPE, existing[TYPE]) == COLLECTION)
+    settings = {**existing, **update_dict}
+    prepare_project(code, settings[TYPE] == COLLECTION, settings)
     return get_cache(COLLECT).update(code, update_dict)
 
 

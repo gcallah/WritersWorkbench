@@ -42,3 +42,4 @@ fieldset { border: 0; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; }
 legend { font-weight: 600; margin-bottom: 8px; }
 .author-list { margin: 0; padding-left: 18px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+fieldset[hidden] { display: none; }
