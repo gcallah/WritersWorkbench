@@ -8,12 +8,8 @@
       <legend>Project details</legend>
       <label for="name">Project name</label>
       <input id="name" name="name" required maxlength="200" value="{{ project.name }}">
-      <label for="type">Project type</label>
-      <select id="type" name="type">
-        {% for value, label in type_choices.items() %}
-          <option value="{{ value }}" {% if value == project.type %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
+      <p>Project type: <strong>{{ type_choices.get(project.type, project.type) }}</strong></p>
+      <p class="hint">The type is fixed. If you need a different type, delete this project and create a new one.</p>
     </fieldset>
 
     <fieldset>

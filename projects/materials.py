@@ -43,7 +43,7 @@ def save_file(project_code, contributor_id, piece_type, data,
         raise ValueError('Provide a nonempty file of at most 10 MB.')
     with _LOCK:
         path = piece_path(project_code, contributor_id, piece_type, extension)
-        storage.prepare_project(project_code, edited_volume=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         _write(path, data)
         return contributors.mark_received(
             project_code, contributor_id, piece_type)
