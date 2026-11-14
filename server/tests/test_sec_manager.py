@@ -7,9 +7,10 @@ from unittest.mock import patch
 
 from backendcore.security.sec_manager2 import GOOD_PROTOCOL
 
-import server.endpoints as ep
+import server.apis as ep
+from server.endpoints import app
 
-TEST_CLIENT = ep.app.test_client()
+TEST_CLIENT = app.test_client()
 
 SEC_MANAGER = 'backendcore.security.sec_manager2'
 

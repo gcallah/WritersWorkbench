@@ -9,9 +9,10 @@ from uuid import uuid4
 import pytest
 
 import projects.people as people
-import server.endpoints as ep
+import server.apis as ep
+from server.endpoints import app
 
-TEST_CLIENT = ep.app.test_client()
+TEST_CLIENT = app.test_client()
 
 
 def test_hello_get():
@@ -68,8 +69,8 @@ def temp_project():
 
 
 def test_check_access():
-    with ep.app.test_request_context(query_string=USER_PARAM,
-                                     headers=AUTH_HDRS):
+    with app.test_request_context(query_string=USER_PARAM,
+                                  headers=AUTH_HDRS):
         assert ep.check_access(ep.request) == ep.pqry.TEST_USER
 
 
@@ -283,7 +284,7 @@ def test_fetch_user_not_there():
 
 
 def test_check_owner_wrong_key(temp_user):
-    with ep.app.test_request_context(headers=STRANGER_HDRS):
+    with app.test_request_context(headers=STRANGER_HDRS):
         with pytest.raises(ep.wz.Forbidden):
             ep.check_owner(ep.request, ep.fetch_user(temp_user))
 
