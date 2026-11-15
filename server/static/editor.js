@@ -131,6 +131,45 @@ const requirementFields = Array.from(document.querySelectorAll('[data-requiremen
 let savedRequirements = null;
 // The project's table of contents as last loaded or saved; null until loaded.
 let savedToc = null;
+let comments = [];
+
+function commentDraftDirty() {
+  return selected !== null && byId('comment-input').value.length > 0;
+}
+
+function renderComments() {
+  const list = byId('comments-list');
+  list.replaceChildren();
+  comments.forEach((comment) => {
+    const item = document.createElement('li');
+    const meta = document.createElement('p');
+    meta.className = 'comment-meta';
+    const author = document.createElement('strong');
+    author.textContent = comment.author;
+    const time = document.createElement('time');
+    time.dateTime = comment.created_at;
+    const date = new Date(comment.created_at);
+    time.textContent = Number.isNaN(date.getTime()) ? comment.created_at :
+      date.toLocaleString();
+    meta.append(author, time);
+    const body = document.createElement('p');
+    body.className = 'comment-body';
+    body.textContent = comment.text;
+    item.append(meta, body);
+    list.append(item);
+  });
+  byId('comments-count').textContent = comments.length;
+  byId('comments-empty').hidden = comments.length > 0;
+  if (!comments.length) {
+    byId('comments-empty').textContent = selected ?
+      'No comments on this piece yet.' : 'Select a contributor to view comments.';
+  }
+}
+
+function commentStatus(message, error = false) {
+  byId('comment-status').textContent = message;
+  byId('comment-status').classList.toggle('error', error);
+}
 
 function requirementValues() {
   return Object.fromEntries(requirementFields.map((field) => [field, byId(field).checked]));
@@ -206,6 +245,7 @@ function status(message, error = false) {
 }
 
 const MAX_LENGTH = 100000;
+const MAX_COMMENT_LENGTH = 5000;
 
 // The textarea's maxlength doesn't apply to Toast UI, so check it here.
 // (The saved markdown counts, including formatting marks.)
@@ -232,11 +272,13 @@ function documentPending() {
 }
 
 function dirty() {
-  return pieceDirty() || refereeDirty() || documentPending() || requirementsDirty() || tocDirty();
+  return pieceDirty() || refereeDirty() || documentPending() ||
+    requirementsDirty() || tocDirty() || commentDraftDirty();
 }
 
 function allowDiscard(includeRequirements = false) {
   const unsaved = pieceDirty() || refereeDirty() || documentPending() ||
+    commentDraftDirty() ||
     (includeRequirements && (requirementsDirty() || tocDirty()));
   return !unsaved || confirm('Discard unsaved changes?');
 }
@@ -262,6 +304,10 @@ function updateControls() {
   byId('toc-text').disabled = busy || creating || savedToc === null;
   byId('toc-file').disabled = busy || creating || savedToc === null;
   byId('toc-save').disabled = busy || creating || !tocDirty() || !byId('toc-text').value.trim();
+  byId('comment-input').disabled = busy || creating || selected === null;
+  byId('post-comment').disabled = busy || creating || selected === null ||
+    !byId('comment-input').value.trim() ||
+    byId('comment-input').value.length > MAX_COMMENT_LENGTH;
   byId('add').disabled = busy;
   tabs.forEach((tab) => {
     if ('projectOnly' in tab.dataset) tab.hidden = !projectCode;
@@ -306,12 +352,18 @@ function renderReceipt() {
 async function loadPiece(record, type) {
   busy = true;
   clearDocumentUpload();
+  byId('comment-input').value = '';
+  commentStatus('');
   updateControls();
   status('Loading...');
   try {
-    const data = await api(`/api/contributors/${record.id}/pieces/${type}`);
+    const [data, commentData] = await Promise.all([
+      api(`/api/contributors/${record.id}/pieces/${type}`),
+      api(`/api/contributors/${record.id}/pieces/${type}/comments`),
+    ]);
     selected = record;
     pieceType = type;
+    comments = commentData.comments;
     savedText = data.text;
     piece.setValue(savedText);
     baseline = piece.value();
@@ -330,6 +382,7 @@ async function loadPiece(record, type) {
     });
     renderContributors();
     renderReceipt();
+    renderComments();
     status(savedText ? 'All changes saved' : 'Not yet received');
   } catch (error) {
     status(error.message, true);
@@ -364,6 +417,34 @@ piece.onChange(() => {
   updateControls();
 });
 byId('search').addEventListener('input', renderContributors);
+byId('comment-input').addEventListener('input', () => {
+  commentStatus(commentDraftDirty() ? 'Comment draft not posted.' : '');
+  updateControls();
+});
+byId('comment-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = byId('comment-input').value;
+  if (busy || !selected || !text.trim() || text.length > MAX_COMMENT_LENGTH) return;
+  busy = true;
+  updateControls();
+  commentStatus('Posting comment...');
+  try {
+    const data = await api(
+      `/api/contributors/${selected.id}/pieces/${pieceType}/comments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+    comments.push(data.comment);
+    byId('comment-input').value = '';
+    renderComments();
+    commentStatus('Comment posted.');
+  } catch (error) {
+    commentStatus(error.message, true);
+  } finally {
+    busy = false;
+    updateControls();
+  }
+});
 byId('save').addEventListener('click', async () => {
   if (busy || !selected || !pieceDirty() || !piece.value().trim() || tooLong()) return;
   busy = true;
@@ -512,6 +593,10 @@ byId('project-select').addEventListener('change', async () => {
   savedToc = null;
   selected = null;
   contributors = [];
+  comments = [];
+  byId('comment-input').value = '';
+  renderComments();
+  commentStatus('');
   savedText = '';
   piece.setValue('');
   baseline = '';

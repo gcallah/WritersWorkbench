@@ -101,6 +101,12 @@ existing `Bio` and `Submission` flag names are preserved. The database also trac
 `Address`, `Keywords`, and `Permission`. A flag becomes true only after that
 item is saved successfully. Empty template folders do not mark items received.
 
+The editor also supports append-only comments on each contributor piece.
+Comments are scoped to a project, contributor, and piece, and are stored
+separately from manuscript files with an editor label and UTC timestamp.
+Comments are available for the existing project piece types and are limited to
+5,000 characters each.
+
 The existing contributor endpoints accept `?project=<project-code>` to select
 a book. `/api/editor/projects` lists the edited volumes for the authenticated
 shared editor. The piece API also accepts `abstract`, `address`, `keywords`, and

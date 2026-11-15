@@ -114,6 +114,27 @@
             <i data-lucide="save" aria-hidden="true"></i><span>Save changes</span>
           </button>
         </footer>
+        <section class="comment-thread" aria-labelledby="comments-heading">
+          <div class="comments-heading">
+            <h3 id="comments-heading">Editor comments</h3>
+            <span id="comments-count">0</span>
+          </div>
+          <ol id="comments-list" class="comments-list" aria-live="polite"
+              aria-relevant="additions"></ol>
+          <p id="comments-empty" class="comments-empty">Select a contributor to view comments.</p>
+          <form id="comment-form">
+            <label for="comment-input">Add a note about this piece</label>
+            <textarea id="comment-input" maxlength="5000" rows="3"
+                      placeholder="Feedback, questions, or revision notes"
+                      disabled></textarea>
+            <div class="comment-actions">
+              <p id="comment-status" role="status" aria-live="polite"></p>
+              <button id="post-comment" class="secondary" type="submit" disabled>
+                Post comment
+              </button>
+            </div>
+          </form>
+        </section>
       </div>
     </section>
   </main>

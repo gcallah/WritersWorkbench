@@ -128,6 +128,20 @@ def save_piece(contributor_id, piece_type):
     return jsonify(record)
 
 
+@editor.get('/api/contributors/<contributor_id>/pieces/<piece_type>/comments')
+def read_comments(contributor_id, piece_type):
+    """Load the comments for a contributor's piece."""
+    return jsonify(comments=_store().get_comments(contributor_id, piece_type))
+
+
+@editor.post('/api/contributors/<contributor_id>/pieces/<piece_type>/comments')
+def add_comment(contributor_id, piece_type):
+    """Add an editor comment to a contributor's piece."""
+    comment = _store().add_comment(
+        contributor_id, piece_type, _payload().get('text'))
+    return jsonify(comment=comment), 201
+
+
 @editor.post('/api/contributors/<contributor_id>/referee')
 def save_referee(contributor_id):
     """Save whether this contributor's paper has a referee."""

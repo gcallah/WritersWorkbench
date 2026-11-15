@@ -8,7 +8,11 @@ from unittest.mock import patch
 import pytest
 
 from projects import query as projects_query
-from server.projects import ContributorStore, ProjectContributorStore
+from server.projects import (
+    MAX_COMMENT_LENGTH,
+    ContributorStore,
+    ProjectContributorStore,
+)
 from server.endpoints import app
 
 
@@ -118,6 +122,57 @@ def test_replace_bio_preserves_unicode_and_other_contributors(
     assert contributor_store.get_piece(other['id'], 'bio') == ''
 
 
+def test_comments_are_persisted_per_piece(contributor_store, contributor,
+                                          tmp_path):
+    comment = contributor_store.add_comment(
+        contributor['id'], 'bio', 'Please verify the publication date.')
+
+    assert comment['author'] == 'Editor'
+    assert comment['text'] == 'Please verify the publication date.'
+    assert comment['id']
+    assert comment['created_at'].endswith('+00:00')
+    assert contributor_store.get_comments(contributor['id'], 'bio') == [
+        comment]
+    assert contributor_store.get_comments(
+        contributor['id'], 'submission') == []
+    assert ContributorStore(tmp_path).get_comments(
+        contributor['id'], 'bio') == [comment]
+
+
+@pytest.mark.parametrize('text', ['', '  ', None, 42,
+                                  'a' * (MAX_COMMENT_LENGTH + 1)])
+def test_invalid_comment_is_not_saved(contributor_store, contributor, text):
+    with pytest.raises(ValueError):
+        contributor_store.add_comment(contributor['id'], 'bio', text)
+    assert contributor_store.get_comments(contributor['id'], 'bio') == []
+
+
+def test_comment_rejects_unknown_piece(contributor_store, contributor):
+    with pytest.raises(ValueError, match='Unknown piece type'):
+        contributor_store.add_comment(contributor['id'], '../bio', 'Note')
+
+
+@patch('server.projects.storage.project_directory', autospec=True)
+@patch('server.projects.contributors.fetch', autospec=True)
+@patch('server.projects.contributors.require_volume', autospec=True)
+def test_project_comments_are_scoped_to_member_and_piece(
+        mock_require_volume, mock_fetch, mock_project_directory, tmp_path):
+    mock_project_directory.return_value = tmp_path
+    store = ProjectContributorStore('b' * 32)
+    contributor_id = 'a' * 32
+
+    comment = store.add_comment(
+        contributor_id, 'referee_report', 'Revisit point 2.')
+
+    assert store.get_comments(contributor_id, 'referee_report') == [comment]
+    assert store.get_comments(contributor_id, 'bio') == []
+    assert (tmp_path / 'comments' / contributor_id /
+            'referee_report.json').is_file()
+    assert mock_fetch.call_count == 3
+    mock_require_volume.assert_called_once_with('b' * 32)
+    mock_project_directory.assert_called_with('b' * 32)
+
+
 @patch('server.projects.contributors.require_volume', autospec=True)
 @patch('server.projects.contributors.fetch_list', autospec=True)
 def test_project_store_lists_contributors(mock_fetch, mock_require_volume):
@@ -196,6 +251,30 @@ def test_editor_api_saves_bio(editor_client, tmp_path):
     assert (tmp_path / contributor['id'] / 'bio.txt').exists()
 
 
+def test_editor_api_reads_and_adds_piece_comments(editor_client):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    contributor_id = created.get_json()['id']
+    url = f'/api/contributors/{contributor_id}/pieces/bio/comments'
+
+    response = editor_client.post(url, json={'text': 'Check this citation.'})
+
+    assert response.status_code == 201
+    comment = response.get_json()['comment']
+    assert comment['text'] == 'Check this citation.'
+    assert editor_client.get(url).get_json() == {'comments': [comment]}
+
+
+@pytest.mark.parametrize(('piece_type', 'text'), [
+    ('unknown', 'A note'), ('bio', ''), ('bio', 'a' * 5_001),
+])
+def test_editor_api_rejects_invalid_comments(editor_client, piece_type, text):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    url = (f"/api/contributors/{created.get_json()['id']}"
+           f'/pieces/{piece_type}/comments')
+
+    assert editor_client.post(url, json={'text': text}).status_code == 400
+
+
 def test_editor_api_saves_referee_answer(editor_client):
     created = editor_client.post('/api/contributors', json={'name': 'Ada'})
     contributor = created.get_json()
@@ -253,7 +332,7 @@ def test_editor_upload_uses_project_material_store(editor_client):
 
 @pytest.mark.parametrize('filename', ['bio.txt', 'bio.exe', ''])
 def test_editor_rejects_unsupported_or_missing_document(editor_client,
-                                                         filename):
+                                                        filename):
     created = editor_client.post('/api/contributors', json={'name': 'Ada'})
     url = f"/api/contributors/{created.get_json()['id']}/pieces/bio/document"
     data = {'file': (BytesIO(b'data'), filename)} if filename else {}
@@ -324,6 +403,7 @@ def test_editor_page_and_assets(editor_client):
     assert response.status_code == 200
     assert b'Writer\'s Workbench' in response.data
     assert b'id="piece-text"' in response.data
+    assert b'id="comment-form"' in response.data
     assert editor_client.get('/static/editor.js').status_code == 200
     assert editor_client.get('/static/editor.css').status_code == 200
 

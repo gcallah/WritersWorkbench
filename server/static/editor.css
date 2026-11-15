@@ -134,3 +134,22 @@ dialog label { display: block; margin-bottom: 8px; font-size: 12px; }
 .project-toc p { min-height: 1em; margin: 7px 0 0; color: var(--muted); font-size: 12px; }
 .toc-upload { margin: 0 0 10px; }
 #toc-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.comment-thread { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+.comments-heading { display: flex; align-items: baseline; gap: 8px; }
+.comments-heading h3 { margin: 0; font-size: 15px; font-weight: 600; }
+#comments-count { color: var(--muted); font-size: 12px; }
+.comments-list { margin: 10px 0 0; padding: 0; list-style: none; }
+.comments-list li { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.comment-meta { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 0 6px; color: var(--muted); font-size: 11px; }
+.comment-meta strong { color: var(--ink); }
+.comment-body { margin: 0; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comments-empty { color: var(--muted); font-size: 12px; }
+#comment-form { margin-top: 16px; }
+#comment-form label { display: block; margin-bottom: 8px; font-weight: 600; }
+#comment-input { min-height: 90px; height: 110px; padding: 10px 12px; border-top-width: 1px; font-family: inherit; font-size: 14px; line-height: 1.5; }
+.comment-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+#comment-status { margin: 0; color: var(--muted); font-size: 12px; }
+@media (max-width: 560px) {
+  .comment-actions { align-items: flex-start; }
+}

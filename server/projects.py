@@ -4,14 +4,44 @@ import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import RLock
+from datetime import datetime, timezone
 from uuid import uuid4
 
-from projects import contributors, materials
+from projects import contributors, materials, storage
 
 
 PIECE_TYPES = {'bio': 'Bio', 'submission': 'Submission'}
 MAX_TEXT_LENGTH = 100_000
+MAX_COMMENT_LENGTH = 5_000
 _LOCK = RLock()
+
+
+def _new_comment(text):
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('Enter a comment before posting.')
+    if len(text) > MAX_COMMENT_LENGTH:
+        raise ValueError('Comments must be at most 5,000 characters.')
+    return {
+        'id': uuid4().hex,
+        'author': 'Editor',
+        'text': text.strip(),
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _read_comments(path):
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def _append_comment(path, text):
+    comment = _new_comment(text)
+    comments = _read_comments(path)
+    comments.append(comment)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ContributorStore._write(path, json.dumps(comments, ensure_ascii=False))
+    return comment
 
 
 class ContributorStore:
@@ -89,6 +119,22 @@ class ContributorStore:
             self._write(record_path, json.dumps(record))
         return record
 
+    def get_comments(self, contributor_id, piece_type):
+        if piece_type not in PIECE_TYPES:
+            raise ValueError('Unknown piece type.')
+        with _LOCK:
+            directory = self._directory(contributor_id)
+            return _read_comments(
+                directory / 'comments' / f'{piece_type}.json')
+
+    def add_comment(self, contributor_id, piece_type, text):
+        if piece_type not in PIECE_TYPES:
+            raise ValueError('Unknown piece type.')
+        with _LOCK:
+            directory = self._directory(contributor_id)
+            return _append_comment(
+                directory / 'comments' / f'{piece_type}.json', text)
+
     def save_file(self, contributor_id, piece_type, data, extension):
         """Save an uploaded document, then mark its piece received."""
         if piece_type not in PIECE_TYPES:
@@ -150,6 +196,23 @@ class ProjectContributorStore:
     def save_piece(self, contributor_id, piece_type, text):
         return materials.save_text(self.project_code, contributor_id,
                                    piece_type, text)
+
+    def _comments_path(self, contributor_id, piece_type):
+        if piece_type not in contributors.PIECES:
+            raise ValueError('Unknown piece type.')
+        contributors.fetch(self.project_code, contributor_id)
+        return (storage.project_directory(self.project_code) / 'comments'
+                / contributor_id / f'{piece_type}.json')
+
+    def get_comments(self, contributor_id, piece_type):
+        with _LOCK:
+            return _read_comments(
+                self._comments_path(contributor_id, piece_type))
+
+    def add_comment(self, contributor_id, piece_type, text):
+        with _LOCK:
+            return _append_comment(
+                self._comments_path(contributor_id, piece_type), text)
 
     def save_file(self, contributor_id, piece_type, data, extension):
         return materials.save_file(self.project_code, contributor_id,
