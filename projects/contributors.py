@@ -52,8 +52,9 @@ def add(project_code, name, person_id=None):
     record = {ID: uuid4().hex, PROJECT: project_code, NAME: name.strip()}
     record.update({flag: False for _, flag in PIECES.values()})
     record[HAS_REFEREE] = None
-    if person_id is not None:
-        record[PERSON_ID] = person_id
+    # Always present, like HAS_REFEREE, so a record reads the same whether
+    # it was just added or loaded back from the database.
+    record[PERSON_ID] = person_id
     get_cache(COLLECT).add(dict(record))
     return record
 
