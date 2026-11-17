@@ -1,13 +1,67 @@
 """Tests for the projects web interface (issue #4)."""
 from base64 import b64encode
+from uuid import uuid4
+from unittest.mock import Mock
 
 import pytest
 
+import projects.person_project as pp
+import projects.people as people
 import projects.query as pqry
 from server.endpoints import app
 
 USERNAME = 'editor'
 PASSWORD = 'test-password'
+
+
+@pytest.mark.parametrize('prompt', [False, True])
+def test_command_line_startup(monkeypatch, tmp_path, prompt):
+    from server import __main__ as cli
+
+    for name in ('DATABASE', 'OUR_NAME', 'WRITERS_EDITOR_USERNAME',
+                 'WRITERS_EDITOR_PASSWORD', 'PORT'):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv('SQLITE_LOC', str(tmp_path / 'database'))
+    if not prompt:
+        monkeypatch.setenv('WRITERS_EDITOR_PASSWORD', PASSWORD)
+    password_prompt = Mock(return_value=PASSWORD)
+    run = Mock()
+    monkeypatch.setattr(cli, 'getpass', password_prompt)
+    monkeypatch.setattr(app, 'run', run)
+    monkeypatch.setitem(app.config, 'EDITOR_USERNAME', USERNAME)
+    monkeypatch.setitem(app.config, 'EDITOR_PASSWORD', PASSWORD)
+
+    cli.main(['--host', '127.0.0.1', '--port', '8123'] if prompt else [])
+
+    run.assert_called_once_with(host='127.0.0.1',
+                                port=8123 if prompt else 8002)
+    assert cli.os.environ['DATABASE'] == 'sqlite'
+    assert (tmp_path / 'database').is_dir()
+    assert app.config['EDITOR_PASSWORD'] == PASSWORD
+    assert app.config['EDITOR_USERNAME'] == USERNAME
+    if prompt:
+        password_prompt.assert_called_once()
+    else:
+        password_prompt.assert_not_called()
+
+
+def test_command_line_rejects_empty_password(monkeypatch):
+    from server import __main__ as cli
+
+    monkeypatch.delenv('WRITERS_EDITOR_PASSWORD', raising=False)
+    monkeypatch.setattr(cli, 'getpass', Mock(return_value='  '))
+    with pytest.raises(SystemExit) as error:
+        cli.main([])
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize('port', ['0', '65536', 'not-a-port'])
+def test_command_line_rejects_invalid_port(port):
+    from server import __main__ as cli
+
+    with pytest.raises(SystemExit) as error:
+        cli.main(['--port', port])
+    assert error.value.code == 2
 
 
 def _login_header(username=USERNAME, password=PASSWORD):
@@ -73,13 +127,24 @@ def test_create_list_edit_delete(client):
                           headers=_login_header())
     assert name.encode() in response.data
 
-    # Rename and change type.
-    new_name = 'Web Test Essay'
+    assert b'name="type"' not in response.data
+    assert b'Edited volume (multi-author)' in response.data
+
+    # A crafted request must not change the type, name, or author list.
+    response = client.post(f'/web/projects/{code}/edit',
+                           headers=_login_header(), follow_redirects=True,
+                           data={'name': 'Unexpected rename',
+                                 'type': pqry.ESSAY, 'authors': 'Someone'})
+    assert b'type cannot change' in response.data
+    assert pqry.fetch_by_key(code)[pqry.NAME] == name
+    assert not pp.fetch_authors(code)
+
+    new_name = 'Renamed Volume'
     client.post(f'/web/projects/{code}/edit', headers=_login_header(),
-                data={'name': new_name, 'type': pqry.ESSAY})
+                data={'name': new_name})
     project = pqry.fetch_by_key(code)
     assert project[pqry.NAME] == new_name
-    assert project[pqry.TYPE] == pqry.ESSAY
+    assert project[pqry.TYPE] == pqry.COLLECTION
 
     # Delete.
     client.post(f'/web/projects/{code}/delete', headers=_login_header())
@@ -139,6 +204,7 @@ def test_cross_site_label_blocked(client):
     assert _codes_named('Sneaky Two') == []
 
 
+issue-25-journal-issue
 def test_create_journal_issue(client):
     response = client.post('/web/projects', headers=_login_header(),
                            data={'name': 'Spring Issue',
@@ -149,3 +215,116 @@ def test_create_journal_issue(client):
     assert len(codes) == 1
     assert pqry.fetch_by_key(codes[0])[pqry.TYPE] == pqry.JOURNAL_ISSUE
     pqry.delete(codes[0])
+
+    
+def _delete_authors(names):
+    for name in names:
+        for author_id in people.fetch_by_name(name):
+            people.delete(author_id)
+
+
+@pytest.fixture
+def project_code():
+    code = pqry.add(dict(pqry.TEST_SAMPLE))
+    yield code
+    if pqry.is_valid(code):
+        pqry.delete(code)
+
+
+def _edit_form(code, author_text):
+    project = pqry.fetch_by_key(code)
+    return {'name': project[pqry.NAME], 'type': project[pqry.TYPE],
+            'authors': author_text}
+
+
+def test_edit_saves_author_list(client, project_code):
+    zed, ada = f'Zed {uuid4().hex[:8]}', f'Ada {uuid4().hex[:8]}'
+    try:
+        # Blank lines and extra spaces are ignored.
+        client.post(f'/web/projects/{project_code}/edit',
+                    headers=_login_header(),
+                    data=_edit_form(project_code, f'  {zed}\n\n{ada}\n'))
+        found = [author[people.NAME]
+                 for author in pp.fetch_authors(project_code)]
+        assert found == [ada, zed]
+
+        # The edit page shows the saved authors, one per line.
+        response = client.get(f'/web/projects/{project_code}/edit',
+                              headers=_login_header())
+        assert f'{ada}\n{zed}'.encode() in response.data
+    finally:
+        _delete_authors([zed, ada])
+
+
+def test_edit_replaces_author_list(client, project_code):
+    keep, drop = f'Keep {uuid4().hex[:8]}', f'Drop {uuid4().hex[:8]}'
+    try:
+        pp.set_authors(project_code, [keep, drop])
+        client.post(f'/web/projects/{project_code}/edit',
+                    headers=_login_header(),
+                    data=_edit_form(project_code, keep))
+        found = [author[people.NAME]
+                 for author in pp.fetch_authors(project_code)]
+        assert found == [keep]
+    finally:
+        _delete_authors([keep, drop])
+
+
+def test_edit_bad_author_saves_nothing(client, project_code):
+    old_name = pqry.fetch_by_key(project_code)[pqry.NAME]
+    data = _edit_form(project_code, 'x' * (people.MAX_NAME_LEN + 1))
+    data['name'] = 'Should Not Save'
+    response = client.post(f'/web/projects/{project_code}/edit',
+                           headers=_login_header(), data=data,
+                           follow_redirects=True)
+    assert b'Person name must be' in response.data
+    assert pqry.fetch_by_key(project_code)[pqry.NAME] == old_name
+    assert pp.fetch_authors(project_code) == []
+
+
+def test_create_goes_to_authors(client):
+    name = f'Next Step {uuid4().hex[:8]}'
+    response = client.post('/web/projects', headers=_login_header(),
+                           data={'name': name, 'type': pqry.ESSAY})
+    code = _codes_named(name)[0]
+    try:
+        # After creating, the next step is adding authors.
+        assert response.headers['Location'].endswith(
+            f'/web/projects/{code}/edit#authors')
+    finally:
+        pqry.delete(code)
+
+
+def test_list_shows_authors(client, project_code):
+    name = f'Shown {uuid4().hex[:8]}'
+    response = client.get('/web/projects', headers=_login_header())
+    assert b'No authors yet.' in response.data
+    try:
+        pp.set_authors(project_code, [name])
+        response = client.get('/web/projects', headers=_login_header())
+        assert f'<li>{name}</li>'.encode() in response.data
+    finally:
+        _delete_authors([name])
+
+
+def test_create_edited_volume_with_selected_components(client):
+    from projects.storage import project_directory
+    headers = _login_header()
+    form = client.get('/web/projects', headers=headers)
+    for field in pqry.REQUIREMENT_FIELDS:
+        assert f'name="{field}"'.encode() in form.data
+    name = 'Volume with abstracts and keywords'
+    client.post('/web/projects', headers=headers, data={
+        'name': name, 'type': pqry.COLLECTION,
+        'requires_abstract': 'on', 'requires_keywords': 'on'})
+    code, = _codes_named(name)
+    try:
+        project = pqry.fetch_by_key(code)
+        assert project['requires_abstract'] and project['requires_keywords']
+        assert not project['requires_bio']
+        folders = {p.name for p in project_directory(code).iterdir()}
+        assert folders == {'chapters', 'drafts', 'Proposal',
+                           'abstracts', 'keywords'}
+    finally:
+        pqry.delete(code)
+master

@@ -75,7 +75,7 @@ def test_wrong_project_cannot_write(author):
     try:
         with pytest.raises(KeyError):
             materials.save_text(other, author[1], 'bio', 'Wrong book')
-        assert not list((storage.project_directory(other) / 'bios').iterdir())
+        assert not (storage.project_directory(other) / 'bios').exists()
     finally:
         query.delete(other)
 

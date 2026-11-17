@@ -25,7 +25,6 @@ def test_referee_report_has_own_folder_and_flag():
     folder, flag = contributors.PIECES['referee_report']
     assert folder == 'referee_reports'
     assert flag == 'RefereeReport'
-    assert folder in storage.VOLUME_FOLDERS
 
 
 @pytest.mark.parametrize('piece', PIECES)

@@ -3,7 +3,7 @@ A simple web interface for the Writer's Workbench (issue #4).
 
 Before this, projects could only be managed through the JSON API or by
 running Python code. These pages let someone do the same things from a
-browser: see all projects, create one, rename it or change its type, and
+browser: see all projects, create one, rename it or edit its authors, and
 delete it.
 
 The pages live under /web so they don't collide with the API's Swagger
@@ -14,7 +14,12 @@ from secrets import compare_digest
 from flask import (Blueprint, current_app, flash, redirect, render_template,
                    request, url_for)
 
+import projects.person_project as pp
+import projects.people as people
 import projects.query as pqry
+
+# The edit form's box where the editor types one author per line.
+AUTHORS_FIELD = 'authors'
 
 
 # A "blueprint" is a group of related pages. endpoints.py plugs it into
@@ -113,8 +118,17 @@ def project_list():
     # Sort by name, ignoring upper/lower case, so the list is easy to scan.
     all_projects = sorted(pqry.fetch_list(),
                           key=lambda proj: proj[pqry.NAME].casefold())
+    # Each project's author names, so the list can show who is on it.
+    authors_by_code = {
+        proj[pqry.CODE]: [author[people.NAME]
+                          for author in pp.fetch_authors(proj[pqry.CODE])]
+        for proj in all_projects
+    }
     return render_template('web/projects.html',
                            projects=all_projects,
+                           components=pqry.AUTHOR_COMPONENTS,
+                           collection_type=pqry.COLLECTION,
+                           authors_by_code=authors_by_code,
                            type_choices=pqry.get_type_choices())
 
 
@@ -127,40 +141,63 @@ def project_create():
         pqry.TYPE: request.form.get(pqry.TYPE, ''),
         pqry.USER: _current_user(),
     }
+    if new_project[pqry.TYPE] == pqry.COLLECTION:
+        new_project.update({field: field in request.form
+                            for field in pqry.REQUIREMENT_FIELDS})
     try:
-        pqry.add(new_project)
-        flash(f'Created "{new_project[pqry.NAME]}".', 'success')
+        code = pqry.add(new_project)
     except ValueError as err:
         # add() raises ValueError for a blank name or unknown type.
         flash(str(err), 'error')
-    # Send the browser back to the list so a page refresh doesn't
-    # submit the form a second time.
-    return redirect(url_for('web.project_list'))
+        # Back to the list so a page refresh doesn't submit the form again.
+        return redirect(url_for('web.project_list'))
+    # Adding authors is the next step, so go straight to that part of
+    # the new project's page.
+    flash(f'Created "{new_project[pqry.NAME]}". Now add its authors.',
+          'success')
+    return redirect(url_for('web.project_edit', code=code,
+                            _anchor=AUTHORS_FIELD))
 
 
 @web.get('/projects/<code>/edit')
 def project_edit(code):
-    """Show the form for renaming a project or changing its type."""
+    """Show the form for renaming a project and editing its authors."""
     project = _project_or_none(code)
     if project is None:
         flash('That project no longer exists.', 'error')
         return redirect(url_for('web.project_list'))
+    author_names = [author[people.NAME]
+                    for author in pp.fetch_authors(code)]
     return render_template('web/project_edit.html', project=project,
-                           type_choices=pqry.get_type_choices())
+                           type_choices=pqry.get_type_choices(),
+                           author_names=author_names)
+
+
+def _author_names_from_form():
+    """
+    Turn the authors box into a list of names: one per line, with blank
+    lines skipped.
+    """
+    text = request.form.get(AUTHORS_FIELD, '')
+    return [line.strip() for line in text.splitlines() if line.strip()]
 
 
 @web.post('/projects/<code>/edit')
 def project_update(code):
-    """Save changes from the edit form."""
+    """Save changes from the edit form, including the list of authors."""
     if _project_or_none(code) is None:
         flash('That project no longer exists.', 'error')
         return redirect(url_for('web.project_list'))
-    changes = {
-        pqry.NAME: request.form.get(pqry.NAME, '').strip(),
-        pqry.TYPE: request.form.get(pqry.TYPE, ''),
-    }
+    changes = {pqry.NAME: request.form.get(pqry.NAME, '').strip()}
+    if pqry.TYPE in request.form:
+        changes[pqry.TYPE] = request.form[pqry.TYPE]
+    author_names = _author_names_from_form()
     try:
+        # Check the author names first, so a bad name saves nothing.
+        for name in author_names:
+            people.check_name(name)
         pqry.update(code, changes)
+        pp.set_authors(code, author_names)
     except ValueError as err:
         # Stay on the edit page so the person can fix the problem.
         flash(str(err), 'error')
