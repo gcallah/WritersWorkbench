@@ -2,11 +2,11 @@
 from secrets import compare_digest
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from server.projects import ContributorStore, ProjectContributorStore
-from projects import query as projects_query
+from server.web import same_site_request
 
 
 editor = Blueprint('editor', __name__, template_folder='templates')
@@ -24,6 +24,16 @@ def _store():
 @editor.before_request
 def require_editor():
     """Fail closed when editor credentials have not been configured."""
+    return editor_login_problem()
+
+
+def editor_login_problem():
+    """
+    Check the shared editor login (and, for saves, that the request came
+    from our own pages). Returns an error response to send back, or None
+    if everything is fine. Used by the contributor endpoints here and by
+    the requirements endpoint in the Projects API.
+    """
     password = current_app.config.get('EDITOR_PASSWORD')
     if not password:
         return jsonify(error='Editor access is not configured.'), 503
@@ -35,11 +45,12 @@ def require_editor():
             or not compare_digest((auth.password or '').encode(),
                                   password.encode())):
         return (jsonify(error='Editor authentication required.'), 401,
-                {'WWW-Authenticate': 'Basic realm="Contributor editor", '
+                {'WWW-Authenticate': 'Basic realm="Writer\'s Workbench", '
                                      'charset="UTF-8"'})
-    if request.method == 'POST':
-        origin = request.headers.get('Origin')
-        if origin and origin != request.host_url.rstrip('/'):
+    if request.method in ('POST', 'PUT'):
+        # Same check as the web pages, so saving also works behind a
+        # proxy like GitHub Codespaces.
+        if not same_site_request():
             return jsonify(error='Cross-origin writes are not allowed.'), 403
         is_document_upload = request.endpoint == 'editor.upload_piece'
         max_request_size = MAX_UPLOAD_BYTES + 100_000

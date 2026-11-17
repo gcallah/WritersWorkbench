@@ -308,6 +308,47 @@ def test_list_shows_authors(client, project_code):
         _delete_authors([name])
 
 
+
+
+def _new_project(name, proj_type):
+    """Create a project directly and give back its code."""
+    return pqry.add({pqry.NAME: name, pqry.TYPE: proj_type,
+                     pqry.USER: USERNAME})
+
+
+@pytest.mark.parametrize('proj_type', [pqry.COLLECTION, pqry.JOURNAL_ISSUE])
+def test_contributors_page_for_multi_author_projects(client, proj_type):
+    code = _new_project('Contributor Book', proj_type)
+    try:
+        # The projects list links to the project's Contributors page.
+        listing = client.get('/web/projects', headers=_login_header())
+        url = f'/web/projects/{code}/contributors'
+        assert url.encode() in listing.data
+        page = client.get(url, headers=_login_header())
+        assert page.status_code == 200
+        assert b'Contributor Book' in page.data
+        assert f'data-project="{code}"'.encode() in page.data
+    finally:
+        pqry.delete(code)
+
+
+def test_no_contributors_page_for_solo_book(client):
+    code = _new_project('Just Me', pqry.SOLO_BOOK)
+    try:
+        url = f'/web/projects/{code}/contributors'
+        listing = client.get('/web/projects', headers=_login_header())
+        assert url.encode() not in listing.data
+        page = client.get(url, headers=_login_header(),
+                          follow_redirects=True)
+        assert b'Only edited volumes and journal issues' in page.data
+    finally:
+        pqry.delete(code)
+
+
+def test_contributors_page_missing_project(client):
+    page = client.get('/web/projects/doesnotexist/contributors',
+                      headers=_login_header(), follow_redirects=True)
+    assert b'no longer exists' in page.data
 def test_create_edited_volume_with_selected_components(client):
     from projects.storage import project_directory
     headers = _login_header()

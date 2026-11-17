@@ -158,7 +158,7 @@ def add(project: dict):
     _check_requirements(project)
     project = _with_requirements(project)
     project[CODE] = uuid4().hex
-    prepare_project(project[CODE], project[TYPE] == COLLECTION, project)
+    prepare_project(project[CODE], is_multi_author(project[TYPE]))
     get_cache(COLLECT).add(project)
     return project[CODE]
 
@@ -182,7 +182,7 @@ def update(code, update_dict: dict):
         raise ValueError('Project type cannot change after creation. '
                          'Delete this project and create one of the new type.')
     settings = {**existing, **update_dict}
-    prepare_project(code, settings[TYPE] == COLLECTION, settings)
+    prepare_project(code, is_multi_author(new_type))
     return get_cache(COLLECT).update(code, update_dict)
 
 
@@ -214,3 +214,13 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# Multi-author project types: these get contributors, author requirements,
+# and folders for contributor materials (bios, abstracts, and so on).
+MULTI_AUTHOR_TYPES = (COLLECTION, JOURNAL_ISSUE)
+
+
+def is_multi_author(proj_type):
+    """True if this project type collects work from several contributors."""
+    return proj_type in MULTI_AUTHOR_TYPES
