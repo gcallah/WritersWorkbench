@@ -4,8 +4,9 @@ import pytest
 from projects import query, storage
 
 
-def test_collection_creation_and_rename():
-    code = query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION,
+@pytest.mark.parametrize('proj_type', query.MULTI_AUTHOR_TYPES)
+def test_collection_creation_and_rename(proj_type):
+    code = query.add({**query.TEST_SAMPLE, query.TYPE: proj_type,
                       'requires_keywords': True})
     try:
         directory = storage.project_directory(code)
@@ -61,6 +62,34 @@ def test_journal_issue_gets_volume_folders():
     try:
         directory = storage.project_directory(code)
         assert {p.name for p in directory.iterdir()} == set(
-            storage.VOLUME_FOLDERS)
+            storage.CORE_FOLDERS)
+    finally:
+        query.delete(code)
+
+
+@pytest.mark.parametrize('proj_type', query.MULTI_AUTHOR_TYPES)
+@pytest.mark.parametrize('field,component', storage.AUTHOR_COMPONENTS.items())
+def test_selected_component_on_create_and_update(proj_type, field, component):
+    folder = component[1]
+    code = query.add({**query.TEST_SAMPLE, query.TYPE: proj_type, field: True})
+    try:
+        directory = storage.project_directory(code)
+        assert {p.name for p in directory.iterdir()} == {
+            *storage.CORE_FOLDERS, folder}
+        manuscript = directory / folder / 'saved.txt'
+        manuscript.write_text('Keep submitted material')
+        query.update(code, {field: False})
+        assert manuscript.read_text() == 'Keep submitted material'
+    finally:
+        query.delete(code)
+
+    code = query.add({**query.TEST_SAMPLE, query.TYPE: proj_type})
+    try:
+        directory = storage.project_directory(code)
+        assert not (directory / folder).exists()
+        query.update(code, {field: True})
+        assert (directory / folder).is_dir()
+        query.update(code, {query.NAME: 'Renamed'})
+        assert query.fetch_by_key(code)[field] is True
     finally:
         query.delete(code)

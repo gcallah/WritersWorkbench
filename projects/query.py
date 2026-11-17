@@ -158,7 +158,7 @@ def add(project: dict):
     _check_requirements(project)
     project = _with_requirements(project)
     project[CODE] = uuid4().hex
-    prepare_project(project[CODE], is_multi_author(project[TYPE]))
+    prepare_project(project[CODE], is_multi_author(project[TYPE]), project)
     get_cache(COLLECT).add(project)
     return project[CODE]
 
@@ -182,7 +182,7 @@ def update(code, update_dict: dict):
         raise ValueError('Project type cannot change after creation. '
                          'Delete this project and create one of the new type.')
     settings = {**existing, **update_dict}
-    prepare_project(code, is_multi_author(settings[TYPE]))
+    prepare_project(code, is_multi_author(settings[TYPE]), settings)
     return get_cache(COLLECT).update(code, update_dict)
 
 
