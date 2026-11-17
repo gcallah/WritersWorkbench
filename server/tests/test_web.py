@@ -204,7 +204,6 @@ def test_cross_site_label_blocked(client):
     assert _codes_named('Sneaky Two') == []
 
 
-issue-25-journal-issue
 def test_create_journal_issue(client):
     response = client.post('/web/projects', headers=_login_header(),
                            data={'name': 'Spring Issue',
@@ -327,4 +326,3 @@ def test_create_edited_volume_with_selected_components(client):
                            'abstracts', 'keywords'}
     finally:
         pqry.delete(code)
-master
