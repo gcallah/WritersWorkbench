@@ -20,7 +20,8 @@ def temp_project():
 def test_get_type_choices():
     choices = qry.get_type_choices()
     assert isinstance(choices, dict)
-    for proj_type in [qry.SOLO_BOOK, qry.COLLECTION, qry.ESSAY]:
+    for proj_type in [qry.SOLO_BOOK, qry.COLLECTION, qry.ESSAY,
+                      qry.JOURNAL_ISSUE]:
         assert proj_type in choices
 
 

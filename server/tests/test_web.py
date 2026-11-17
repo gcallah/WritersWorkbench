@@ -206,6 +206,18 @@ def test_cross_site_label_blocked(client):
     assert _codes_named('Sneaky Two') == []
 
 
+def test_create_journal_issue(client):
+    response = client.post('/web/projects', headers=_login_header(),
+                           data={'name': 'Spring Issue',
+                                 'type': pqry.JOURNAL_ISSUE},
+                           follow_redirects=True)
+    assert b'Journal Issue' in response.data
+    codes = _codes_named('Spring Issue')
+    assert len(codes) == 1
+    assert pqry.fetch_by_key(codes[0])[pqry.TYPE] == pqry.JOURNAL_ISSUE
+    pqry.delete(codes[0])
+
+    
 def _delete_authors(names):
     for name in names:
         for author_id in people.fetch_by_name(name):
