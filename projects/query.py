@@ -182,7 +182,7 @@ def update(code, update_dict: dict):
         raise ValueError('Project type cannot change after creation. '
                          'Delete this project and create one of the new type.')
     settings = {**existing, **update_dict}
-    prepare_project(code, is_multi_author(new_type))
+    prepare_project(code, is_multi_author(settings[TYPE]))
     return get_cache(COLLECT).update(code, update_dict)
 
 

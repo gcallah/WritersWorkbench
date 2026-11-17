@@ -155,3 +155,19 @@ def test_is_multi_author():
     assert qry.is_multi_author(qry.JOURNAL_ISSUE)
     assert not qry.is_multi_author(qry.SOLO_BOOK)
     assert not qry.is_multi_author(qry.ESSAY)
+
+
+@pytest.mark.parametrize('proj_type', qry.PROJECT_TYPES)
+def test_rename_preserves_type_and_rejects_conversion(proj_type):
+    code = qry.add({**qry.TEST_SAMPLE, qry.TYPE: proj_type})
+    try:
+        qry.update(code, {qry.NAME: 'Renamed project'})
+        saved = qry.fetch_by_key(code)
+        assert saved[qry.NAME] == 'Renamed project'
+        assert saved[qry.TYPE] == proj_type
+        other_type = next(t for t in qry.PROJECT_TYPES if t != proj_type)
+        with pytest.raises(ValueError, match='type cannot change'):
+            qry.update(code, {qry.NAME: 'Must not save', qry.TYPE: other_type})
+        assert qry.fetch_by_key(code) == saved
+    finally:
+        qry.delete(code)
