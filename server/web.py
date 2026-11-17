@@ -386,3 +386,4 @@ def author_piece_save(code, person_id, piece):
     label = PIECE_LABELS.get(piece, piece).lower()
     flash(f'Saved {label} for {person[people.NAME]}.', 'success')
     return redirect(url_for('web.project_materials', code=code))
+
