@@ -7,7 +7,7 @@ from uuid import uuid4
 from backendcore.data.caching import needs_cache, get_cache
 import backendcore.data.fields as cflds
 
-from projects.storage import prepare_project
+from projects.storage import AUTHOR_COMPONENTS, prepare_project
 
 DB = 'projectsDB'
 COLLECT = 'Projects'
@@ -24,7 +24,7 @@ REQUIRED_FLDS = [NAME, USER, TYPE]
 REQUIRES_BIO = 'requires_bio'
 REQUIRES_PERMISSION = 'requires_permission'
 REQUIRES_ADDRESS = 'requires_address'
-REQUIREMENT_FIELDS = (REQUIRES_BIO, REQUIRES_PERMISSION, REQUIRES_ADDRESS)
+REQUIREMENT_FIELDS = tuple(AUTHOR_COMPONENTS)
 
 
 def _check_requirements(project):
@@ -167,7 +167,7 @@ def add(project: dict):
 def update(code, update_dict: dict):
     """
     Update the fields in update_dict for the project with this code.
-    The code itself can't be changed.
+    The code and original project type cannot change.
     """
     if CODE in update_dict:
         raise ValueError(f'Project {CODE} can not be updated.')
@@ -178,7 +178,10 @@ def update(code, update_dict: dict):
     existing = fetch_by_key(code)
     if existing is None:
         raise ValueError(f'No project with code {code}')
-    new_type = update_dict.get(TYPE, existing[TYPE])
+    if TYPE in update_dict and update_dict[TYPE] != existing[TYPE]:
+        raise ValueError('Project type cannot change after creation. '
+                         'Delete this project and create one of the new type.')
+    settings = {**existing, **update_dict}
     prepare_project(code, is_multi_author(new_type))
     return get_cache(COLLECT).update(code, update_dict)
 

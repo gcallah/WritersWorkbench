@@ -11,6 +11,7 @@ from server.web import same_site_request
 
 editor = Blueprint('editor', __name__, template_folder='templates')
 MAX_UPLOAD_BYTES = 10_000_000
+MAX_TOC_CHARS = 100_000
 
 
 def _store():
@@ -105,6 +106,13 @@ def request_failure(error):
     return jsonify(error=error.description), error.code
 
 
+@editor.get('/editor')
+def editor_page():
+    """Display the contributor workbench."""
+    return render_template('editor.html',
+                           components=projects_query.AUTHOR_COMPONENTS)
+
+
 @editor.get('/api/contributors')
 def contributors():
     """List contributors and their received-piece flags."""
@@ -154,3 +162,76 @@ def upload_piece(contributor_id, piece_type):
         raise ValueError('Documents must be at most 10 MB.')
     return jsonify(_store().save_file(contributor_id, piece_type, data,
                                       extension))
+
+
+@editor.get('/api/editor/projects')
+def edited_volumes():
+    """List edited volumes for the existing shared editor account."""
+    volumes = [project for project in projects_query.fetch_list()
+               if project[projects_query.TYPE] == projects_query.COLLECTION]
+    volumes.sort(key=lambda project: project[projects_query.NAME].casefold())
+    return jsonify(projects=volumes)
+
+
+def _volume_requirements(code):
+    project = projects_query.fetch_by_key(code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if project[projects_query.TYPE] != projects_query.COLLECTION:
+        raise ValueError('Requirements editor needs an edited-volume project.')
+    return {field: project[field]
+            for field in projects_query.REQUIREMENT_FIELDS}
+
+
+@editor.get('/api/editor/projects/<code>/requirements')
+def read_requirements(code):
+    """Read the requirements shared by all authors in an edited volume."""
+    return jsonify(requirements=_volume_requirements(code))
+
+
+@editor.post('/api/editor/projects/<code>/requirements')
+def save_requirements(code):
+    """Save requirement flags without changing other project fields."""
+    _volume_requirements(code)
+    changes = _payload()
+    unknown = set(changes) - set(projects_query.REQUIREMENT_FIELDS)
+    if not changes or unknown:
+        raise ValueError('Send only project requirement settings.')
+    if not projects_query.update(code, changes):
+        raise OSError('Could not update project requirements.')
+    return jsonify(requirements=_volume_requirements(code))
+
+
+@editor.get('/api/editor/projects/<code>/toc')
+def read_toc(code):
+    """Read the markdown table of contents for an edited volume."""
+    project = projects_query.fetch_by_key(code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if project[projects_query.TYPE] != projects_query.COLLECTION:
+        raise ValueError(
+            'Table of contents requires an edited-volume project.'
+        )
+    return jsonify(text=project.get('toc') or '')
+
+
+@editor.post('/api/editor/projects/<code>/toc')
+def save_toc(code):
+    """Save markdown table of contents for an edited volume."""
+    project = projects_query.fetch_by_key(code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if project[projects_query.TYPE] != projects_query.COLLECTION:
+        raise ValueError(
+            'Table of contents requires an edited-volume project.'
+        )
+    text = _payload().get('text')
+    if text is None:
+        raise ValueError('Send the table of contents text.')
+    if len(text) > MAX_TOC_CHARS:
+        raise ValueError(
+            'Table of contents must be at most 100,000 characters.'
+        )
+    if not projects_query.update(code, {'toc': text}):
+        raise OSError('Could not update table of contents.')
+    return jsonify(text=text)

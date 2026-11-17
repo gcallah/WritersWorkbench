@@ -1,16 +1,11 @@
-"""
-This module naturally will import from lots of places, but I do hope we can cut
-back some of these imports!
-"""
+"""Create and configure the Flask application."""
 import os
 import secrets
 from pathlib import Path
 
 from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
-from flask_restx import Resource, Namespace, fields
-import werkzeug.exceptions as wz
-from werkzeug.routing import Rule
+from server.apis import api
 
 import backendcore.api.common as acmn
 
@@ -62,12 +57,9 @@ import server.security as sec
 from server.editor import editor, editor_login_problem
 from server.web import web
 
-import projects.person_project as pp
-import projects.query as pqry
-import users.query as uqry
-
-ENDPOINTS = 'Endpoints'
-HELLO = 'hello'
+DEF_PORT = 8000
+LOCAL_HOST = '127.0.0.1'
+SUCCESS = 0
 
 app = Flask(__name__)
 app.config['RESTX_ERROR_404_HELP'] = False

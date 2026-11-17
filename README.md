@@ -4,6 +4,21 @@ Our intention here is to create a suite of tools for professional writers.
 
 ## Running Locally
 
+With the Python environment activated and requirements installed, run this
+command from the repository root:
+
+```bash
+python -m server
+```
+
+Open `http://127.0.0.1:8002/web/` and log in as `editor` with the password
+you enter at the prompt. Set `WRITERS_EDITOR_PASSWORD` beforehand to skip
+the prompt, and `WRITERS_EDITOR_USERNAME` to change the login name.
+The command defaults to local SQLite storage and preserves existing database
+environment settings. Use `python -m server --port 9000` to change the port;
+`--host` defaults to `127.0.0.1`. This is a local development server, not a
+production deployment.
+
 Start the web interface with [web.sh](web.sh) in Bash or
 [web.bat](web.bat) in Windows Command Prompt.
 
@@ -53,18 +68,14 @@ writes must be same-origin. Failed saves keep the browser draft available.
 The existing `collection` type is displayed as **Edited volume (multi-author)**.
 Creating a project through `projects.query.add` or `/Projects/create` creates
 its directory. Other project types get an empty directory; edited volumes get
-these folders, following [JustifyingTheState](https://github.com/gcallah/JustifyingTheState):
+core folders `chapters`, `drafts` and `Proposal`, following
+[JustifyingTheState](https://github.com/gcallah/JustifyingTheState).
+An edited volume also gets folders for the author components selected at
+creation. Saving an optional submission later creates just its folder.
+Existing folders and manuscripts are kept when requirements change.
 
-- `abstracts`, `addresses`, `bios`, `chapters`, `keywords`, `permissions`
-- `drafts` and `Proposal`
-
-We copy the folder pattern, not the example book's authors or documents.
 Project folders default to `instance/projects/<project-code>/`. Set
-`WRITERS_PROJECTS_DIR` to change that root, consistently for both the API and
-command-line use. Codes remain stable when a project is renamed. Changing a
-project to `collection` also creates any missing template folders. Existing
-collections created before this change get their folders on an update or first
-material save.
+`WRITERS_PROJECTS_DIR` to change that root. Codes remain stable on rename.
 
 ### Contributors, files, and the existing editor
 
@@ -107,8 +118,8 @@ a book, moved, or deleted. A future explicit migration can associate old data.
 
 **Retention and failures:** project deletion removes the project record, but
 retains its documents and contributor records for recovery. It does not delete
-manuscripts automatically. Changing a collection to another type also retains
-its material, but removes it from the edited-volume selector. Back up both the
+manuscripts automatically. The project type is fixed at creation. To switch types,
+delete the project and create a new one; its files do not transfer. Back up the
 database and the project files. File writes replace files atomically; database
 and file writes are not a single transaction. If the file succeeds but the
 receipt update fails, the request reports failure and can be retried. As with
@@ -213,6 +224,9 @@ with the password it asks you to choose.
 
 On an edited volume's or journal issue's **Contributors** page, choose whether each author
 must provide a biography, permission to publish, or an address. Click
+Choose biography, permission to publish, address, abstract, or keywords when
+creating an edited volume at `/web/projects`. To revise the choices in
+`/editor`, select the volume and click
 **Save requirements** to store the choices. These settings are separate from
 whether an author has already submitted each item.
 See [project requirement settings](docs/project_requirements.md) for API fields,

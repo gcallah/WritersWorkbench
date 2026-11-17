@@ -132,3 +132,9 @@ dialog label { display: block; margin-bottom: 8px; font-size: 12px; }
 .project-name { font-family: Georgia, serif; font-size: 22px; margin: 0 0 18px; }
 a.desk-label { text-decoration: none; }
 a.desk-label:hover { color: var(--ink); }
+.project-toc { margin: 0 0 24px; }
+.project-toc label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px; }
+#toc-text { width: 100%; min-height: 160px; height: 200px; padding: 10px; margin-bottom: 10px; font-family: Consolas, Menlo, monospace; font-size: 13px; line-height: 1.5; border-top-width: 1px; }
+.project-toc p { min-height: 1em; margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.toc-upload { margin: 0 0 10px; }
+#toc-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

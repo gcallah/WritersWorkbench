@@ -114,7 +114,7 @@ def test_referee_answer_is_saved_per_paper(client, books):
         qry.get_cache(contributors.COLLECT).delete(person['id'])
 
 def test_existing_projects_api_accepts_requirements(client, books):
-    from server import endpoints as ep
+    from server import apis as ep
     headers = {ep.AUTH_KEY: 'test-key'}
     params = {qry.USER: qry.TEST_USER}
     payload = {qry.NAME: 'API book', qry.TYPE: qry.COLLECTION,
