@@ -43,3 +43,15 @@ legend { font-weight: 600; margin-bottom: 8px; }
 .author-list { margin: 0; padding-left: 18px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 fieldset[hidden] { display: none; }
+
+/* Screens for filling in materials. */
+.panel.wide { max-width: none; }
+textarea { width: 100%; }
+h3 { font-size: 16px; margin: 0 0 8px; }
+.pieces { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pieces li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.piece-name { flex: 1 1 200px; font-weight: 600; }
+.tag { margin-left: 8px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font-size: 11px; font-weight: 400; }
+.status { font-size: 13px; }
+.status.done { color: var(--accent); }
+.status.pending { color: var(--muted); }

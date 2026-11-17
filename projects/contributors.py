@@ -11,6 +11,8 @@ ID = 'id'
 PROJECT = 'project_code'
 NAME = 'name'
 HAS_REFEREE = 'HasReferee'
+# Set when the record was made from a person on the /web/ screens.
+PERSON_ID = 'person_id'
 # Preserve the editor's existing Bio and Submission names.
 PIECES = {
     'bio': ('bios', 'Bio'),
@@ -37,14 +39,21 @@ def require_volume(project_code):
 
 
 @needs_contributors
-def add(project_code, name):
-    """Register a contributor in one edited volume; return their record."""
+def add(project_code, name, person_id=None):
+    """Register a contributor in one edited volume; return their record.
+
+    person_id links the record to a person from the People table."""
     require_volume(project_code)
     if not isinstance(name, str) or not name.strip() or len(name) > 200:
         raise ValueError('Enter a contributor name of 1 to 200 characters.')
+    if person_id is not None and (not isinstance(person_id, str)
+                                  or not person_id):
+        raise ValueError('A person id must be a non-empty string.')
     record = {ID: uuid4().hex, PROJECT: project_code, NAME: name.strip()}
     record.update({flag: False for _, flag in PIECES.values()})
     record[HAS_REFEREE] = None
+    if person_id is not None:
+        record[PERSON_ID] = person_id
     get_cache(COLLECT).add(dict(record))
     return record
 
@@ -95,3 +104,22 @@ def mark_received(project_code, contributor_id, piece_type):
     if not get_cache(COLLECT).update(contributor_id, {flag: True}):
         raise OSError('Could not update receipt status.')
     return fetch(project_code, contributor_id)
+
+
+def fetch_by_person(project_code):
+    """Map person id to contributor record, for people linked in this book."""
+    return {record[PERSON_ID]: record for record in fetch_list(project_code)
+            if record.get(PERSON_ID)}
+
+
+def fetch_for_person(project_code, person_id):
+    """Return the contributor record linked to this person, or None."""
+    return fetch_by_person(project_code).get(person_id)
+
+
+def ensure_for_person(project_code, person_id, name):
+    """Return this person's contributor record, creating it the first time."""
+    record = fetch_for_person(project_code, person_id)
+    if record is None:
+        record = add(project_code, name, person_id)
+    return record
