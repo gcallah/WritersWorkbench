@@ -14,7 +14,7 @@ from secrets import compare_digest
 from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, url_for)
 
-from projects import contributors, materials
+from projects import materials
 import projects.person_project as pp
 import projects.people as people
 import projects.query as pqry
@@ -301,7 +301,7 @@ def _author_or_none(code, person_id):
 def _piece_rows(project, record):
     """One row per piece: its label, whether it is required and received."""
     rows = []
-    for piece, (_, flag) in contributors.PIECES.items():
+    for piece, (_, flag) in pp.PIECES.items():
         field = REQUIRED_BY.get(piece)
         rows.append({'type': piece,
                      'label': PIECE_LABELS.get(piece, piece),
@@ -316,10 +316,9 @@ def project_materials(code):
     project = _edited_volume(code)
     if project is None:
         return redirect(url_for('web.project_list'))
-    by_person = contributors.fetch_by_person(code)
     authors = [{'person': person,
-                'pieces': _piece_rows(project,
-                                      by_person.get(person[people.ID], {}))}
+                'pieces': _piece_rows(project, pp.fetch_author_status(
+                    code, person[people.ID]))}
                for person in pp.fetch_authors(code)]
     return render_template('web/project_materials.html', project=project,
                            toc=project.get('toc') or '', authors=authors,
@@ -356,7 +355,7 @@ def _fill_in_target(code, person_id, piece):
     Returns (project, person, None) when all are fine, or
     (None, None, response) with a redirect after flashing the problem.
     """
-    if piece not in contributors.PIECES:
+    if piece not in pp.PIECES:
         abort(404)
     project = _edited_volume(code)
     if project is None:
@@ -382,9 +381,7 @@ def author_piece(code, person_id, piece):
     project, person, problem = _fill_in_target(code, person_id, piece)
     if problem is not None:
         return problem
-    record = contributors.fetch_for_person(code, person_id)
-    text = (materials.read_text(code, record[contributors.ID], piece)
-            if record else '')
+    text = materials.read_text(code, person_id, piece)
     return _render_piece(project, person, piece, text)
 
 
@@ -396,9 +393,7 @@ def author_piece_save(code, person_id, piece):
         return problem
     text = _form_text('text')
     try:
-        record = contributors.ensure_for_person(code, person_id,
-                                                person[people.NAME])
-        materials.save_text(code, record[contributors.ID], piece, text)
+        materials.save_text(code, person_id, piece, text)
     except ValueError as err:
         flash(str(err), 'error')
         return _render_piece(project, person, piece, text, 400)

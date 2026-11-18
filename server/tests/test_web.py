@@ -4,9 +4,8 @@ from uuid import uuid4
 from unittest.mock import Mock
 
 import pytest
-from backendcore.data.caching import get_cache
 
-from projects import contributors, materials
+from projects import materials
 import projects.person_project as pp
 import projects.people as people
 import projects.query as pqry
@@ -382,8 +381,6 @@ def volume():
     ids = {author[people.NAME]: author[people.ID]
            for author in pp.fetch_authors(code)}
     yield code, names, ids
-    for record in contributors.fetch_list(code):
-        get_cache(contributors.COLLECT).delete(record['id'])
     _delete_authors(names)
     if pqry.is_valid(code):
         pqry.delete(code)
@@ -444,24 +441,21 @@ def test_fill_in_and_edit_a_piece(client, volume):
     person = ids[names[0]]
     url = _piece_url(code, person, 'bio')
     assert client.get(url, headers=_login_header()).status_code == 200
-    # Only saving creates the contributor record, not just looking.
-    assert contributors.fetch_for_person(code, person) is None
+    # Only saving marks the piece received, not just looking.
+    assert pp.fetch_author_status(code, person)['Bio'] is False
 
     response = client.post(url, headers=_login_header(),
                            data={'text': 'Ada writes.\r\nSecond line.'},
                            follow_redirects=True)
     assert b'Saved biography' in response.data
-    record = contributors.fetch_for_person(code, person)
-    assert record['Bio'] is True
-    assert record[contributors.PERSON_ID] == person
-    assert (materials.read_text(code, record['id'], 'bio')
+    assert pp.fetch_author_status(code, person)['Bio'] is True
+    assert (materials.read_text(code, person, 'bio')
             == 'Ada writes.\nSecond line.')
     assert b'Ada writes.' in client.get(url, headers=_login_header()).data
 
-    # Saving again replaces the text and reuses the same record.
+    # Saving again replaces the text.
     client.post(url, headers=_login_header(), data={'text': 'New bio'})
-    assert materials.read_text(code, record['id'], 'bio') == 'New bio'
-    assert len(contributors.fetch_list(code)) == 1
+    assert materials.read_text(code, person, 'bio') == 'New bio'
     overview = client.get(_materials_url(code), headers=_login_header())
     assert b'Received' in overview.data
 
@@ -473,8 +467,7 @@ def test_authors_have_separate_materials(client, volume):
         client.post(_piece_url(code, ids[name], 'address'),
                     headers=_login_header(), data={'text': text})
     for name, text in zip(names, texts):
-        record = contributors.fetch_for_person(code, ids[name])
-        assert materials.read_text(code, record['id'], 'address') == text
+        assert materials.read_text(code, ids[name], 'address') == text
 
 
 def test_blank_text_is_rejected(client, volume):
@@ -484,8 +477,7 @@ def test_blank_text_is_rejected(client, volume):
                            headers=_login_header(), data={'text': '   '})
     assert response.status_code == 400
     assert b'Enter some text' in response.data
-    record = contributors.fetch_for_person(code, person)
-    assert not (record or {}).get('Bio')
+    assert pp.fetch_author_status(code, person)['Bio'] is False
 
 
 def test_storage_failure_keeps_what_was_typed(client, volume, monkeypatch):
@@ -537,7 +529,7 @@ def test_materials_need_login_and_same_site_posts(client, volume):
     response = client.post(_piece_url(code, ids[names[0]], 'bio'),
                            headers=headers, data={'text': 'Sneaky'})
     assert response.status_code == 403
-    assert contributors.fetch_for_person(code, ids[names[0]]) is None
+    assert pp.fetch_author_status(code, ids[names[0]])['Bio'] is False
 
 
 def test_list_links_to_materials_for_volumes_only(client, volume,

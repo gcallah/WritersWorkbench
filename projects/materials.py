@@ -1,9 +1,14 @@
-"""Save contributor materials in the edited volume's category folders."""
+"""Save contributor materials in the edited volume's category folders.
+
+Materials belong to an author (a person id from person_project). Until
+issue #34 is finished, a ProjectContributors record id also works.
+"""
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import RLock
 
 from projects import contributors, storage
+import projects.person_project as pp
 
 
 MAX_TEXT_LENGTH = 100_000
@@ -12,14 +17,31 @@ _LOCK = RLock()
 EXTENSIONS = {'.txt', '.md', '.docx', '.pdf'}
 
 
+def _check_member(project_code, member_id):
+    """Raise KeyError unless this id is an author (or contributor) here."""
+    contributors.require_volume(project_code)
+    try:
+        pp.fetch_author_status(project_code, member_id)
+    except KeyError:
+        contributors.fetch(project_code, member_id)
+
+
+def _mark_received(project_code, member_id, piece_type):
+    try:
+        return pp.mark_received(project_code, member_id, piece_type)
+    except KeyError:
+        return contributors.mark_received(project_code, member_id,
+                                          piece_type)
+
+
 def piece_path(project_code, contributor_id, piece_type, extension='.txt'):
     """Validate membership before constructing any path."""
-    contributors.fetch(project_code, contributor_id)
-    if piece_type not in contributors.PIECES:
+    _check_member(project_code, contributor_id)
+    if piece_type not in pp.PIECES:
         raise ValueError('Unknown piece type.')
     if extension not in EXTENSIONS:
         raise ValueError('Use .txt, .md, .docx, or .pdf files.')
-    folder = contributors.PIECES[piece_type][0]
+    folder = pp.PIECES[piece_type][0]
     return (storage.project_directory(project_code) / folder
             / f'{contributor_id}{extension}')
 
@@ -45,8 +67,7 @@ def save_file(project_code, contributor_id, piece_type, data,
         path = piece_path(project_code, contributor_id, piece_type, extension)
         path.parent.mkdir(parents=True, exist_ok=True)
         _write(path, data)
-        return contributors.mark_received(
-            project_code, contributor_id, piece_type)
+        return _mark_received(project_code, contributor_id, piece_type)
 
 
 def save_text(project_code, contributor_id, piece_type, text):
