@@ -157,7 +157,7 @@ def test_old_editor_endpoints_are_gone(client, books):
 
 
 def test_requirements_listed_with_project_endpoints(client):
-    from server import endpoints as ep
+    import server.apis as ep
     response = client.get(f'/{ep.ENDPOINTS}/{ep.READ}')
     docs = response.get_json()[ep.ENDPOINT_STR]
     assert set(docs['/Projects/requirements/<code>']) == {'get', 'put'}

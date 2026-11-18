@@ -67,6 +67,9 @@
                 {% if project.type in multi_author_types %}
                   <a class="button" href="{{ url_for('web.project_contributors', code=project.code) }}">Contributors</a>
                 {% endif %}
+                {% if project.type == collection_type %}
+                  <a class="button" href="{{ url_for('web.project_materials', code=project.code) }}">Materials</a>
+                {% endif %}
                 <a class="button" href="{{ edit_url }}">Edit</a>
                 {# confirm() pops up "are you sure?" before deleting. #}
                 <form method="post" action="{{ url_for('web.project_delete', code=project.code) }}"

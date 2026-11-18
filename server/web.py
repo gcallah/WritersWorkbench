@@ -18,7 +18,7 @@ from projects import contributors, materials
 import projects.person_project as pp
 import projects.people as people
 import projects.query as pqry
-from server.editor import MAX_TOC_CHARS
+from server.consts import MAX_TOC_CHARS
 
 # The edit form's box where the editor types one author per line.
 AUTHORS_FIELD = 'authors'
@@ -247,7 +247,8 @@ def project_contributors(code):
         return redirect(url_for('web.project_list'))
     # The contributor workspace is the same page the old editor used,
     # now locked to this one project.
-    return render_template('editor.html', project=project)
+    return render_template('editor.html', project=project,
+                           components=pqry.AUTHOR_COMPONENTS)
 
 
 @web.post('/projects/<code>/delete')

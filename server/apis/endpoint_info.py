@@ -23,6 +23,7 @@ from server.apis.projects import (
     PROJ_CREATE_W_NS,
     PROJ_DELETE_W_NS,
     PROJ_READ_W_NS,
+    PROJ_REQUIREMENTS_W_NS,
     PROJ_RETRIEVE_W_NS,
     PROJ_UPDATE_W_NS,
 )
@@ -51,9 +52,9 @@ api.add_namespace(endpoints)
 
 # For the frontend:
 ENDPOINTS_READ = {
-    'ContributorEditor': '/editor',
     'WebHome': '/web/',
     'WebProjects': '/web/projects',
+    'WebProjectContributors': '/web/projects/<code>/contributors',
     'Contributors': '/api/contributors',
     'AuthKey': VALID_KEY_W_NS,
     'IsValidUser': SEC_MANAGER_IS_PERMITTED_W_NS,
@@ -62,6 +63,7 @@ ENDPOINTS_READ = {
     'ProjectDelete': PROJ_DELETE_W_NS,
     'ProjectRetrieve': PROJ_RETRIEVE_W_NS,
     'ProjectUpdate': PROJ_UPDATE_W_NS,
+    'ProjectRequirements': PROJ_REQUIREMENTS_W_NS,
     'ProjectsRead': PROJ_READ_W_NS,
     'ResetPW': RESET_PW_W_NS,
     'ResetTok': PW_RESET_TOK_W_NS,
