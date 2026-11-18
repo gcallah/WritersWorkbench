@@ -4,6 +4,7 @@ from uuid import uuid4
 from backendcore.data.caching import get_cache, needs_cache
 
 from projects import query
+from projects.person_project import PIECES
 
 
 COLLECT = 'ProjectContributors'
@@ -13,16 +14,9 @@ NAME = 'name'
 HAS_REFEREE = 'HasReferee'
 # Set when the record was made from a person on the /web/ screens.
 PERSON_ID = 'person_id'
-# Preserve the editor's existing Bio and Submission names.
-PIECES = {
-    'bio': ('bios', 'Bio'),
-    'submission': ('chapters', 'Submission'),
-    'abstract': ('abstracts', 'Abstract'),
-    'address': ('addresses', 'Address'),
-    'keywords': ('keywords', 'Keywords'),
-    'permission': ('permissions', 'Permission'),
-    'referee_report': ('referee_reports', 'RefereeReport'),
-}
+# PIECES (imported above) now lives in person_project, where author rows
+# keep the same received flags. contributors.PIECES still works until
+# this module is removed (issue #34).
 
 
 def needs_contributors(fn):
