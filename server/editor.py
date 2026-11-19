@@ -2,16 +2,17 @@
 from secrets import compare_digest
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+import projects.query as projects_query
+from server.consts import MAX_TOC_CHARS
 from server.projects import ContributorStore, ProjectContributorStore
-from projects import query as projects_query
+from server.web import same_site_request
 
 
 editor = Blueprint('editor', __name__, template_folder='templates')
 MAX_UPLOAD_BYTES = 10_000_000
-MAX_TOC_CHARS = 100_000
 
 
 def _store():
@@ -24,6 +25,16 @@ def _store():
 @editor.before_request
 def require_editor():
     """Fail closed when editor credentials have not been configured."""
+    return editor_login_problem()
+
+
+def editor_login_problem():
+    """
+    Check the shared editor login (and, for saves, that the request came
+    from our own pages). Returns an error response to send back, or None
+    if everything is fine. Used by the contributor endpoints here and by
+    the requirements endpoint in the Projects API.
+    """
     password = current_app.config.get('EDITOR_PASSWORD')
     if not password:
         return jsonify(error='Editor access is not configured.'), 503
@@ -35,11 +46,12 @@ def require_editor():
             or not compare_digest((auth.password or '').encode(),
                                   password.encode())):
         return (jsonify(error='Editor authentication required.'), 401,
-                {'WWW-Authenticate': 'Basic realm="Contributor editor", '
+                {'WWW-Authenticate': 'Basic realm="Writer\'s Workbench", '
                                      'charset="UTF-8"'})
-    if request.method == 'POST':
-        origin = request.headers.get('Origin')
-        if origin and origin != request.host_url.rstrip('/'):
+    if request.method in ('POST', 'PUT'):
+        # Same check as the web pages, so saving also works behind a
+        # proxy like GitHub Codespaces.
+        if not same_site_request():
             return jsonify(error='Cross-origin writes are not allowed.'), 403
         is_document_upload = request.endpoint == 'editor.upload_piece'
         max_request_size = MAX_UPLOAD_BYTES + 100_000
@@ -93,13 +105,6 @@ def storage_failure(error):
 def request_failure(error):
     """Keep malformed request responses in the JSON API format."""
     return jsonify(error=error.description), error.code
-
-
-@editor.get('/editor')
-def editor_page():
-    """Display the contributor workbench."""
-    return render_template('editor.html',
-                           components=projects_query.AUTHOR_COMPONENTS)
 
 
 @editor.get('/api/contributors')
@@ -165,44 +170,6 @@ def upload_piece(contributor_id, piece_type):
         raise ValueError('Documents must be at most 10 MB.')
     return jsonify(_store().save_file(contributor_id, piece_type, data,
                                       extension))
-
-
-@editor.get('/api/editor/projects')
-def edited_volumes():
-    """List edited volumes for the existing shared editor account."""
-    volumes = [project for project in projects_query.fetch_list()
-               if project[projects_query.TYPE] == projects_query.COLLECTION]
-    volumes.sort(key=lambda project: project[projects_query.NAME].casefold())
-    return jsonify(projects=volumes)
-
-
-def _volume_requirements(code):
-    project = projects_query.fetch_by_key(code)
-    if project is None:
-        raise KeyError('Project not found.')
-    if project[projects_query.TYPE] != projects_query.COLLECTION:
-        raise ValueError('Requirements editor needs an edited-volume project.')
-    return {field: project[field]
-            for field in projects_query.REQUIREMENT_FIELDS}
-
-
-@editor.get('/api/editor/projects/<code>/requirements')
-def read_requirements(code):
-    """Read the requirements shared by all authors in an edited volume."""
-    return jsonify(requirements=_volume_requirements(code))
-
-
-@editor.post('/api/editor/projects/<code>/requirements')
-def save_requirements(code):
-    """Save requirement flags without changing other project fields."""
-    _volume_requirements(code)
-    changes = _payload()
-    unknown = set(changes) - set(projects_query.REQUIREMENT_FIELDS)
-    if not changes or unknown:
-        raise ValueError('Send only project requirement settings.')
-    if not projects_query.update(code, changes):
-        raise OSError('Could not update project requirements.')
-    return jsonify(requirements=_volume_requirements(code))
 
 
 @editor.get('/api/editor/projects/<code>/toc')

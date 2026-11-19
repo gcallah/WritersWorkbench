@@ -1,0 +1,34 @@
+{% extends "web/base.html" %}
+{% block title %}Materials for {{ project.name }}{% endblock %}
+{% block content %}
+  <p><a href="{{ url_for('web.project_list') }}">&larr; Back to projects</a></p>
+  <h1>{{ project.name }}: materials</h1>
+
+  <form class="panel wide" method="post" action="{{ url_for('web.project_toc_save', code=project.code) }}">
+    <h2>Table of contents</h2>
+    <label for="toc">Write the table of contents in markdown</label>
+    <textarea id="toc" name="toc" rows="10" maxlength="{{ max_toc }}" placeholder="# Contents&#10;&#10;1. Introduction&#10;2. Chapter one">{{ toc }}</textarea>
+    <p class="hint">Up to {{ "{:,}".format(max_toc) }} characters. The contributor editor shows the same text.</p>
+    <button class="primary" type="submit">Save table of contents</button>
+  </form>
+
+  <h2>Authors' materials</h2>
+  {% if authors %}
+    {% for row in authors %}
+      <section class="panel wide">
+        <h3>{{ row.person.name }}</h3>
+        <ul class="pieces">
+          {% for piece in row.pieces %}
+            <li>
+              <span class="piece-name">{{ piece.label }}{% if piece.required %}<span class="tag">required</span>{% endif %}</span>
+              <span class="status {{ 'done' if piece.received else 'pending' }}">{{ 'Received' if piece.received else 'Pending' }}</span>
+              <a href="{{ url_for('web.author_piece', code=project.code, person_id=row.person.id, piece=piece.type) }}">{{ 'Edit' if piece.received else 'Fill in' }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endfor %}
+  {% else %}
+    <p class="empty">No authors yet. <a href="{{ url_for('web.project_edit', code=project.code) }}#authors">Add authors</a> first.</p>
+  {% endif %}
+{% endblock %}

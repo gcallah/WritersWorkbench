@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Contributors | Writer's Workbench</title>
+  <title>Contributors | {{ project.name }} | Writer's Workbench</title>
   {# Toast UI Editor (issue #20): a Word-like editor that saves markdown. Version pinned. #}
   <link rel="stylesheet" href="https://uicdn.toast.com/editor/3.2.2/toastui-editor.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='editor.css') }}">
@@ -12,21 +12,27 @@
   <script defer src="https://uicdn.toast.com/editor/3.2.2/toastui-editor-all.min.js"></script>
   <script defer src="{{ url_for('static', filename='editor.js') }}"></script>
 </head>
-<body>
+{# data-project tells editor.js which project this page belongs to. #}
+<body data-project="{{ project.code }}">
   <header class="masthead">
-    <a class="brand" href="{{ url_for('editor.editor_page') }}">
+    <a class="brand" href="{{ url_for('web.home') }}">
       <i data-lucide="notebook-pen" aria-hidden="true"></i>
       Writer's Workbench
     </a>
-    <span class="desk-label">Editorial desk</span>
+    <a class="desk-label" href="{{ url_for('web.project_list') }}">&larr; All projects</a>
   </header>
   <main>
     <section class="directory" aria-labelledby="directory-title">
-      <label class="search-label" for="project-select">Project</label>
-      <select id="project-select" aria-label="Project" disabled>
-        <option value="">Unassigned contributors (existing data)</option>
-      </select>
-      <p id="project-status" role="status"></p>
+      <p class="eyebrow">Project</p>
+      <p class="project-name">{{ project.name }}</p>
+      {# The project is fixed on this page, so the old project picker stays
+         hidden. editor.js still reads it, which is why it's kept. #}
+      <div hidden>
+        <select id="project-select" aria-label="Project" disabled>
+          <option value="">Unassigned contributors (existing data)</option>
+        </select>
+        <p id="project-status" role="status"></p>
+      </div>
       <form id="requirements-form" class="project-requirements" hidden>
         <fieldset id="requirements-fields" disabled>
           <legend>What must each author provide?</legend>

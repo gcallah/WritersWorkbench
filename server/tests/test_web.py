@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from projects import materials
 import projects.person_project as pp
 import projects.people as people
 import projects.query as pqry
@@ -204,6 +205,18 @@ def test_cross_site_label_blocked(client):
     assert _codes_named('Sneaky Two') == []
 
 
+def test_create_journal_issue(client):
+    response = client.post('/web/projects', headers=_login_header(),
+                           data={'name': 'Spring Issue',
+                                 'type': pqry.JOURNAL_ISSUE},
+                           follow_redirects=True)
+    assert b'Journal Issue' in response.data
+    codes = _codes_named('Spring Issue')
+    assert len(codes) == 1
+    assert pqry.fetch_by_key(codes[0])[pqry.TYPE] == pqry.JOURNAL_ISSUE
+    pqry.delete(codes[0])
+
+    
 def _delete_authors(names):
     for name in names:
         for author_id in people.fetch_by_name(name):
@@ -294,6 +307,47 @@ def test_list_shows_authors(client, project_code):
         _delete_authors([name])
 
 
+
+
+def _new_project(name, proj_type):
+    """Create a project directly and give back its code."""
+    return pqry.add({pqry.NAME: name, pqry.TYPE: proj_type,
+                     pqry.USER: USERNAME})
+
+
+@pytest.mark.parametrize('proj_type', [pqry.COLLECTION, pqry.JOURNAL_ISSUE])
+def test_contributors_page_for_multi_author_projects(client, proj_type):
+    code = _new_project('Contributor Book', proj_type)
+    try:
+        # The projects list links to the project's Contributors page.
+        listing = client.get('/web/projects', headers=_login_header())
+        url = f'/web/projects/{code}/contributors'
+        assert url.encode() in listing.data
+        page = client.get(url, headers=_login_header())
+        assert page.status_code == 200
+        assert b'Contributor Book' in page.data
+        assert f'data-project="{code}"'.encode() in page.data
+    finally:
+        pqry.delete(code)
+
+
+def test_no_contributors_page_for_solo_book(client):
+    code = _new_project('Just Me', pqry.SOLO_BOOK)
+    try:
+        url = f'/web/projects/{code}/contributors'
+        listing = client.get('/web/projects', headers=_login_header())
+        assert url.encode() not in listing.data
+        page = client.get(url, headers=_login_header(),
+                          follow_redirects=True)
+        assert b'Only edited volumes and journal issues' in page.data
+    finally:
+        pqry.delete(code)
+
+
+def test_contributors_page_missing_project(client):
+    page = client.get('/web/projects/doesnotexist/contributors',
+                      headers=_login_header(), follow_redirects=True)
+    assert b'no longer exists' in page.data
 def test_create_edited_volume_with_selected_components(client):
     from projects.storage import project_directory
     headers = _login_header()
@@ -314,3 +368,173 @@ def test_create_edited_volume_with_selected_components(client):
                            'abstracts', 'keywords'}
     finally:
         pqry.delete(code)
+
+
+# --- Screens for filling in the table of contents and authors' pieces
+
+@pytest.fixture
+def volume():
+    """An edited volume with two authors, cleaned up afterwards."""
+    code = pqry.add({**pqry.TEST_SAMPLE, pqry.TYPE: pqry.COLLECTION})
+    names = [f'Fill {uuid4().hex[:8]}', f'Other {uuid4().hex[:8]}']
+    pp.set_authors(code, names)
+    ids = {author[people.NAME]: author[people.ID]
+           for author in pp.fetch_authors(code)}
+    yield code, names, ids
+    _delete_authors(names)
+    if pqry.is_valid(code):
+        pqry.delete(code)
+
+
+def _materials_url(code):
+    return f'/web/projects/{code}/materials'
+
+
+def _toc_url(code):
+    return f'/web/projects/{code}/toc'
+
+
+def _piece_url(code, person_id, piece):
+    return f'/web/projects/{code}/authors/{person_id}/{piece}'
+
+
+def test_materials_page_lists_authors_as_pending(client, volume):
+    code, names, _ = volume
+    response = client.get(_materials_url(code), headers=_login_header())
+    assert response.status_code == 200
+    for name in names:
+        assert name.encode() in response.data
+    assert b'Biography' in response.data
+    assert b'Pending' in response.data
+    assert b'Received' not in response.data
+
+
+def test_toc_is_shared_with_the_contributor_editor(client, volume):
+    code, _, _ = volume
+    response = client.post(_toc_url(code), headers=_login_header(),
+                           data={'toc': '# Contents\r\n\r\n1. Intro'},
+                           follow_redirects=True)
+    assert response.status_code == 200
+    assert b'Saved the table of contents' in response.data
+    expected = '# Contents\n\n1. Intro'
+    assert pqry.fetch_by_key(code).get('toc') == expected
+    editor_view = client.get(f'/api/editor/projects/{code}/toc',
+                             headers=_login_header())
+    assert editor_view.json == {'text': expected}
+    page = client.get(_materials_url(code), headers=_login_header())
+    assert b'1. Intro' in page.data
+
+
+def test_toc_too_long_is_rejected(client, volume):
+    code, _, _ = volume
+    client.post(_toc_url(code), headers=_login_header(),
+                data={'toc': 'Keep'})
+    response = client.post(_toc_url(code), headers=_login_header(),
+                           data={'toc': 'a' * 100_001},
+                           follow_redirects=True)
+    assert b'at most 100,000 characters' in response.data
+    assert pqry.fetch_by_key(code).get('toc') == 'Keep'
+
+
+def test_fill_in_and_edit_a_piece(client, volume):
+    code, names, ids = volume
+    person = ids[names[0]]
+    url = _piece_url(code, person, 'bio')
+    assert client.get(url, headers=_login_header()).status_code == 200
+    # Only saving marks the piece received, not just looking.
+    assert pp.fetch_author_status(code, person)['Bio'] is False
+
+    response = client.post(url, headers=_login_header(),
+                           data={'text': 'Ada writes.\r\nSecond line.'},
+                           follow_redirects=True)
+    assert b'Saved biography' in response.data
+    assert pp.fetch_author_status(code, person)['Bio'] is True
+    assert (materials.read_text(code, person, 'bio')
+            == 'Ada writes.\nSecond line.')
+    assert b'Ada writes.' in client.get(url, headers=_login_header()).data
+
+    # Saving again replaces the text.
+    client.post(url, headers=_login_header(), data={'text': 'New bio'})
+    assert materials.read_text(code, person, 'bio') == 'New bio'
+    overview = client.get(_materials_url(code), headers=_login_header())
+    assert b'Received' in overview.data
+
+
+def test_authors_have_separate_materials(client, volume):
+    code, names, ids = volume
+    texts = ['First address', 'Second address']
+    for name, text in zip(names, texts):
+        client.post(_piece_url(code, ids[name], 'address'),
+                    headers=_login_header(), data={'text': text})
+    for name, text in zip(names, texts):
+        assert materials.read_text(code, ids[name], 'address') == text
+
+
+def test_blank_text_is_rejected(client, volume):
+    code, names, ids = volume
+    person = ids[names[0]]
+    response = client.post(_piece_url(code, person, 'bio'),
+                           headers=_login_header(), data={'text': '   '})
+    assert response.status_code == 400
+    assert b'Enter some text' in response.data
+    assert pp.fetch_author_status(code, person)['Bio'] is False
+
+
+def test_storage_failure_keeps_what_was_typed(client, volume, monkeypatch):
+    code, names, ids = volume
+
+    def fail(*args):
+        raise OSError('Disk full')
+
+    monkeypatch.setattr(materials, '_write', fail)
+    response = client.post(_piece_url(code, ids[names[0]], 'bio'),
+                           headers=_login_header(),
+                           data={'text': 'Typed bio'})
+    assert response.status_code == 500
+    assert b'Could not save' in response.data
+    assert b'Typed bio' in response.data
+
+
+def test_unknown_piece_and_non_author(client, volume):
+    code, names, ids = volume
+    response = client.get(_piece_url(code, ids[names[0]], 'nonsense'),
+                          headers=_login_header())
+    assert response.status_code == 404
+    response = client.get(_piece_url(code, 'f' * 32, 'bio'),
+                          headers=_login_header(), follow_redirects=True)
+    assert b'not an author' in response.data
+
+
+def test_materials_only_for_edited_volumes(client, project_code):
+    response = client.get(_materials_url(project_code),
+                          headers=_login_header(), follow_redirects=True)
+    assert b'only for edited volumes' in response.data
+
+
+def test_materials_for_missing_project(client):
+    response = client.get(_materials_url('doesnotexist'),
+                          headers=_login_header(), follow_redirects=True)
+    assert b'no longer exists' in response.data
+
+
+def test_materials_need_login_and_same_site_posts(client, volume):
+    code, names, ids = volume
+    assert client.get(_materials_url(code)).status_code == 401
+    headers = _login_header()
+    headers['Sec-Fetch-Site'] = 'cross-site'
+    response = client.post(_toc_url(code), headers=headers,
+                           data={'toc': 'Sneaky'})
+    assert response.status_code == 403
+    assert not pqry.fetch_by_key(code).get('toc')
+    response = client.post(_piece_url(code, ids[names[0]], 'bio'),
+                           headers=headers, data={'text': 'Sneaky'})
+    assert response.status_code == 403
+    assert pp.fetch_author_status(code, ids[names[0]])['Bio'] is False
+
+
+def test_list_links_to_materials_for_volumes_only(client, volume,
+                                                  project_code):
+    code, _, _ = volume
+    response = client.get('/web/projects', headers=_login_header())
+    assert _materials_url(code).encode() in response.data
+    assert _materials_url(project_code).encode() not in response.data
