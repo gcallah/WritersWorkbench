@@ -85,15 +85,17 @@ controls. Create projects on the same page or through the Projects API. The edit
 The Submission tab asks whether each paper has a referee. This change does not
 add per-user login or change the project's security model.
 
-Contributor IDs, names, project codes, and received-item flags live in the
-`ProjectContributors` collection through BackEndCore, using the same database
-configuration as projects. The per-paper `HasReferee` answer is `null` until
-answered, then stored as `true` or `false`. The local scripts and makefile
-select SQLite.
-Actual materials live on disk, for example:
+A book's contributors are its authors: people in the `People` collection,
+linked to the project in `PersonProject` (issue #34 removed the separate
+`ProjectContributors` collection). Each author's `PersonProject` row also holds
+their received-item flags and the per-paper `HasReferee` answer, which is
+`null` until answered, then `true` or `false`. These use BackEndCore with the
+same database configuration as projects; the local scripts and makefile select
+SQLite.
+Actual materials live on disk, named by person id, for example:
 
-- `instance/projects/<project-code>/bios/<contributor-id>.txt`
-- `instance/projects/<project-code>/chapters/<contributor-id>.txt`
+- `instance/projects/<project-code>/bios/<person-id>.txt`
+- `instance/projects/<project-code>/chapters/<person-id>.txt`
 
 The editor's existing `submission` means chapter text for an edited volume.
 The editor accepts plain text plus `.docx` and `.pdf` uploads for biography

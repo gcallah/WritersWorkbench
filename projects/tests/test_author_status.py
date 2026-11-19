@@ -113,8 +113,3 @@ def test_relinking_author_starts_fresh(project, author):
     pp.unlink(author, project, people.AUTHOR)
     pp.link(author, project, people.AUTHOR)
     assert pp.fetch_author_status(project, author)['Bio'] is False
-
-
-def test_contributors_shares_pieces():
-    from projects import contributors
-    assert contributors.PIECES is pp.PIECES

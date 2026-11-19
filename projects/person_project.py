@@ -56,6 +56,20 @@ def _check_project(project_code):
         raise ValueError(f'No project with code {project_code}')
 
 
+def require_volume(project_code):
+    """
+    Returns the project if it collects pieces from several authors (an
+    edited volume or journal issue). Raises KeyError if it doesn't exist,
+    or ValueError if it is the wrong type.
+    """
+    project = query.fetch_by_key(project_code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if not query.is_multi_author(project[query.TYPE]):
+        raise ValueError('Contributors need a multi-author project.')
+    return project
+
+
 def _check_person(person_id):
     if not people.is_valid(person_id):
         raise ValueError(f'No person with id {person_id}')

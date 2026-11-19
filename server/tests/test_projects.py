@@ -155,7 +155,7 @@ def test_comment_rejects_unknown_piece(contributor_store, contributor):
 
 @patch('server.projects.storage.project_directory', autospec=True)
 @patch('server.projects.ProjectContributorStore._fetch', autospec=True)
-@patch('server.projects.contributors.require_volume', autospec=True)
+@patch('server.projects.pp.require_volume', autospec=True)
 def test_project_comments_are_scoped_to_member_and_piece(
         mock_require_volume, mock_fetch, mock_project_directory, tmp_path):
     mock_project_directory.return_value = tmp_path
@@ -196,7 +196,7 @@ def test_project_store_adds_and_lists_authors(volume_store):
         volume_store.add_contributor(name)
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
+@patch('server.projects.pp.require_volume', autospec=True)
 @patch('server.projects.materials.read_text', autospec=True)
 def test_project_store_reads_piece(mock_read, mock_require_volume):
     mock_read.return_value = 'Biography text'
@@ -415,15 +415,14 @@ def test_editor_page_and_assets(editor_client):
 
 @pytest.fixture
 def edited_books():
-    from projects import contributors, query
-    from backendcore.data.caching import get_cache
+    from projects import people, person_project as pp, query
 
     codes = [query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION,
                         query.NAME: name}) for name in ('Book A', 'Book B')]
     yield codes
     for code in codes:
-        for person in contributors.fetch_list(code):
-            get_cache(contributors.COLLECT).delete(person['id'])
+        for person in pp.fetch_authors(code):
+            people.delete(person[people.ID])
         query.delete(code)
 
 

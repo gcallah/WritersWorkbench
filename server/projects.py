@@ -7,7 +7,7 @@ from threading import RLock
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from projects import contributors, materials, people, storage
+from projects import materials, people, storage
 import projects.person_project as pp
 
 
@@ -184,7 +184,7 @@ class ProjectContributorStore:
     """
 
     def __init__(self, project_code):
-        contributors.require_volume(project_code)
+        pp.require_volume(project_code)
         self.project_code = project_code
 
     def _record(self, person):
