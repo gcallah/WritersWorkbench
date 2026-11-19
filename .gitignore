@@ -184,3 +184,5 @@ database/
 
 # Locally cloned dependency repository
 /BackEndCore/
+venv/
+WritersWorkbench-venv/
