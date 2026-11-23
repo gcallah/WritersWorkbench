@@ -30,7 +30,8 @@ def _validate_contributor_name(name):
 
 
 def _validate_person_id(person_id):
-    if person_id is not None and (not isinstance(person_id, str) or not person_id):
+    if person_id is not None and (not isinstance(person_id, str)
+                                  or not person_id):
         raise ValueError('A person id must be a non-empty string.')
     return person_id
 
@@ -148,8 +149,10 @@ def get_completion_status(project_code, contributor_id):
         }
     """
     record = fetch(project_code, contributor_id)
-    piece_flags = {flag: record.get(flag, False) for _, flag in PIECES.values()}
-    received = sum(1 for received_flag in piece_flags.values() if received_flag)
+    piece_flags = {flag: record.get(flag, False)
+                   for _, flag in PIECES.values()}
+    received = sum(1 for received_flag in piece_flags.values()
+                   if received_flag)
     total = len(piece_flags)
     percent = (received * 100) // total if total > 0 else 0
 
