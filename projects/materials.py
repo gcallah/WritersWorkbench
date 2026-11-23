@@ -1,13 +1,12 @@
 """Save contributor materials in the edited volume's category folders.
 
-Materials belong to an author (a person id from person_project). Until
-issue #34 is finished, a ProjectContributors record id also works.
+Materials belong to an author: a person id from person_project.
 """
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import RLock
 
-from projects import contributors, storage
+from projects import storage
 import projects.person_project as pp
 
 
@@ -18,20 +17,9 @@ EXTENSIONS = {'.txt', '.md', '.docx', '.pdf'}
 
 
 def _check_member(project_code, member_id):
-    """Raise KeyError unless this id is an author (or contributor) here."""
-    contributors.require_volume(project_code)
-    try:
-        pp.fetch_author_status(project_code, member_id)
-    except KeyError:
-        contributors.fetch(project_code, member_id)
-
-
-def _mark_received(project_code, member_id, piece_type):
-    try:
-        return pp.mark_received(project_code, member_id, piece_type)
-    except KeyError:
-        return contributors.mark_received(project_code, member_id,
-                                          piece_type)
+    """Raise KeyError unless this id is an author on this project."""
+    pp.require_volume(project_code)
+    pp.fetch_author_status(project_code, member_id)
 
 
 def piece_path(project_code, contributor_id, piece_type, extension='.txt'):
@@ -67,7 +55,7 @@ def save_file(project_code, contributor_id, piece_type, data,
         path = piece_path(project_code, contributor_id, piece_type, extension)
         path.parent.mkdir(parents=True, exist_ok=True)
         _write(path, data)
-        return _mark_received(project_code, contributor_id, piece_type)
+        return pp.mark_received(project_code, contributor_id, piece_type)
 
 
 def save_text(project_code, contributor_id, piece_type, text):

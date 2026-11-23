@@ -4,10 +4,11 @@ import os
 from base64 import b64encode
 from io import BytesIO
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 
-from projects import query as projects_query
+from projects import people, query as projects_query
 from server.projects import (
     MAX_COMMENT_LENGTH,
     ContributorStore,
@@ -153,8 +154,8 @@ def test_comment_rejects_unknown_piece(contributor_store, contributor):
 
 
 @patch('server.projects.storage.project_directory', autospec=True)
-@patch('server.projects.contributors.fetch', autospec=True)
-@patch('server.projects.contributors.require_volume', autospec=True)
+@patch('server.projects.ProjectContributorStore._fetch', autospec=True)
+@patch('server.projects.pp.require_volume', autospec=True)
 def test_project_comments_are_scoped_to_member_and_piece(
         mock_require_volume, mock_fetch, mock_project_directory, tmp_path):
     mock_project_directory.return_value = tmp_path
@@ -173,33 +174,29 @@ def test_project_comments_are_scoped_to_member_and_piece(
     mock_project_directory.assert_called_with('b' * 32)
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
-@patch('server.projects.contributors.fetch_list', autospec=True)
-def test_project_store_lists_contributors(mock_fetch, mock_require_volume):
-    records = [{'id': 'a' * 32, 'name': 'Ada'}]
-    mock_fetch.return_value = records
-
-    result = ProjectContributorStore('b' * 32).list_contributors()
-
-    assert result == records
-    mock_require_volume.assert_called_once_with('b' * 32)
-    mock_fetch.assert_called_once_with('b' * 32)
-
-
-@patch('server.projects.contributors.require_volume', autospec=True)
-@patch('server.projects.contributors.add', autospec=True)
-def test_project_store_adds_contributor(mock_add, mock_require_volume):
-    record = {'id': 'a' * 32, 'name': 'Ada'}
-    mock_add.return_value = record
-
-    result = ProjectContributorStore('b' * 32).add_contributor('Ada')
-
-    assert result == record
-    mock_require_volume.assert_called_once_with('b' * 32)
-    mock_add.assert_called_once_with('b' * 32, 'Ada')
+@pytest.fixture
+def volume_store():
+    """A store for a real edited volume; its authors are removed after."""
+    code = projects_query.add({**projects_query.TEST_SAMPLE,
+                               projects_query.TYPE: projects_query.COLLECTION})
+    store = ProjectContributorStore(code)
+    yield store
+    for record in store.list_contributors():
+        people.delete(record['id'])
+    projects_query.delete(code)
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
+def test_project_store_adds_and_lists_authors(volume_store):
+    name = f'Ada {uuid4().hex[:8]}'
+    record = volume_store.add_contributor(name)
+    assert record['name'] == name
+    assert record['Bio'] is False and record['HasReferee'] is None
+    assert volume_store.list_contributors() == [record]
+    with pytest.raises(ValueError):
+        volume_store.add_contributor(name)
+
+
+@patch('server.projects.pp.require_volume', autospec=True)
 @patch('server.projects.materials.read_text', autospec=True)
 def test_project_store_reads_piece(mock_read, mock_require_volume):
     mock_read.return_value = 'Biography text'
@@ -211,19 +208,14 @@ def test_project_store_reads_piece(mock_read, mock_require_volume):
     mock_read.assert_called_once_with('b' * 32, 'a' * 32, 'bio')
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
-@patch('server.projects.materials.save_text', autospec=True)
-def test_project_store_saves_piece(mock_save, mock_require_volume):
-    record = {'id': 'a' * 32, 'Bio': True}
-    mock_save.return_value = record
-
-    result = ProjectContributorStore('b' * 32).save_piece(
-        'a' * 32, 'bio', 'Biography text')
-
-    assert result == record
-    mock_require_volume.assert_called_once_with('b' * 32)
-    mock_save.assert_called_once_with(
-        'b' * 32, 'a' * 32, 'bio', 'Biography text')
+def test_project_store_saves_piece_and_referee(volume_store):
+    person = volume_store.add_contributor(f'Ada {uuid4().hex[:8]}')['id']
+    record = volume_store.save_piece(person, 'bio', 'Biography text')
+    assert record['id'] == person and record['Bio'] is True
+    assert volume_store.get_piece(person, 'bio') == 'Biography text'
+    assert volume_store.set_referee(person, False)['HasReferee'] is False
+    with pytest.raises(KeyError):
+        volume_store.save_piece('f' * 32, 'bio', 'Not an author')
 
 
 @pytest.fixture
@@ -423,15 +415,14 @@ def test_editor_page_and_assets(editor_client):
 
 @pytest.fixture
 def edited_books():
-    from projects import contributors, query
-    from backendcore.data.caching import get_cache
+    from projects import people, person_project as pp, query
 
     codes = [query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION,
                         query.NAME: name}) for name in ('Book A', 'Book B')]
     yield codes
     for code in codes:
-        for person in contributors.fetch_list(code):
-            get_cache(contributors.COLLECT).delete(person['id'])
+        for person in pp.fetch_authors(code):
+            people.delete(person[people.ID])
         query.delete(code)
 
 
