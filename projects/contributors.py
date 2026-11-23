@@ -56,6 +56,7 @@ def add(project_code, name, person_id=None):
 def _with_referee(record):
     result = dict(record)
     result.setdefault(HAS_REFEREE, None)
+    result.setdefault(PERSON_ID, None)
     return result
 
 
