@@ -131,3 +131,47 @@ def ensure_for_person(project_code, person_id, name):
     if record is None:
         record = add(project_code, name, person_id)
     return record
+
+
+@needs_contributors
+def get_completion_status(project_code, contributor_id):
+    """Return piece completion stats for a contributor.
+
+    Returns:
+        dict: {
+            'contributor_id': str,
+            'name': str,
+            'received': int (count of received pieces),
+            'total': int (total expected pieces),
+            'percent': int (0-100),
+            'display': str (e.g., "2/4 pieces received (50%)")
+        }
+    """
+    record = fetch(project_code, contributor_id)
+    piece_flags = {flag: record.get(flag, False) for _, flag in PIECES.values()}
+    received = sum(1 for received_flag in piece_flags.values() if received_flag)
+    total = len(piece_flags)
+    percent = (received * 100) // total if total > 0 else 0
+
+    return {
+        'contributor_id': contributor_id,
+        'name': record[NAME],
+        'received': received,
+        'total': total,
+        'percent': percent,
+        'display': f"{received}/{total} pieces received ({percent}%)"
+    }
+
+
+@needs_contributors
+def fetch_all_completion_status(project_code):
+    """Return completion stats for all contributors in a project.
+
+    Returns:
+        list: Sorted by name, each with completion status dict.
+    """
+    contributors = fetch_list(project_code)
+    return sorted(
+        (get_completion_status(project_code, c[ID]) for c in contributors),
+        key=lambda s: s['name'].casefold()
+    )
