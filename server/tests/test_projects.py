@@ -9,7 +9,7 @@ from uuid import uuid4
 import pytest
 
 from projects import people, query as projects_query
-from server.projects import (
+from server.project_handler import (
     MAX_COMMENT_LENGTH,
     ContributorStore,
     ProjectContributorStore,
@@ -153,9 +153,9 @@ def test_comment_rejects_unknown_piece(contributor_store, contributor):
         contributor_store.add_comment(contributor['id'], '../bio', 'Note')
 
 
-@patch('server.projects.storage.project_directory', autospec=True)
-@patch('server.projects.ProjectContributorStore._fetch', autospec=True)
-@patch('server.projects.pp.require_volume', autospec=True)
+@patch('server.project_handler.storage.project_directory', autospec=True)
+@patch('server.project_handler.ProjectContributorStore._fetch', autospec=True)
+@patch('server.project_handler.pp.require_volume', autospec=True)
 def test_project_comments_are_scoped_to_member_and_piece(
         mock_require_volume, mock_fetch, mock_project_directory, tmp_path):
     mock_project_directory.return_value = tmp_path
@@ -196,8 +196,8 @@ def test_project_store_adds_and_lists_authors(volume_store):
         volume_store.add_contributor(name)
 
 
-@patch('server.projects.pp.require_volume', autospec=True)
-@patch('server.projects.materials.read_text', autospec=True)
+@patch('server.project_handler.pp.require_volume', autospec=True)
+@patch('server.project_handler.materials.read_text', autospec=True)
 def test_project_store_reads_piece(mock_read, mock_require_volume):
     mock_read.return_value = 'Biography text'
 

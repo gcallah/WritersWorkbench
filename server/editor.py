@@ -7,7 +7,7 @@ from werkzeug.exceptions import HTTPException
 
 import projects.query as projects_query
 from server.consts import MAX_TOC_CHARS
-from server.projects import ContributorStore, ProjectContributorStore
+from server.project_handler import ContributorStore, ProjectContributorStore
 from server.web import same_site_request
 
 
