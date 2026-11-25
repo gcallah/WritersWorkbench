@@ -348,7 +348,8 @@ def test_contributors_page_missing_project(client):
     page = client.get('/web/projects/doesnotexist/contributors',
                       headers=_login_header(), follow_redirects=True)
     assert b'no longer exists' in page.data
-def test_create_edited_volume_with_selected_components(client):
+@pytest.mark.parametrize('proj_type', pqry.MULTI_AUTHOR_TYPES)
+def test_create_volume_with_selected_components(client, proj_type):
     from projects.storage import project_directory
     headers = _login_header()
     form = client.get('/web/projects', headers=headers)
@@ -356,7 +357,7 @@ def test_create_edited_volume_with_selected_components(client):
         assert f'name="{field}"'.encode() in form.data
     name = 'Volume with abstracts and keywords'
     client.post('/web/projects', headers=headers, data={
-        'name': name, 'type': pqry.COLLECTION,
+        'name': name, 'type': proj_type,
         'requires_abstract': 'on', 'requires_keywords': 'on'})
     code, = _codes_named(name)
     try:

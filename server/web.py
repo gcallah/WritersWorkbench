@@ -163,7 +163,7 @@ def project_create():
         pqry.TYPE: request.form.get(pqry.TYPE, ''),
         pqry.USER: _current_user(),
     }
-    if new_project[pqry.TYPE] == pqry.COLLECTION:
+    if pqry.is_multi_author(new_project[pqry.TYPE]):
         new_project.update({field: field in request.form
                             for field in pqry.REQUIREMENT_FIELDS})
     try:

@@ -21,8 +21,8 @@
         <option value="{{ value }}">{{ label }}</option>
       {% endfor %}
     </select>
-    <fieldset id="volume-components" data-type="{{ collection_type }}">
-      <legend>What must each author provide? (Edited volumes only)</legend>
+    <fieldset id="volume-components" data-types='{{ multi_author_types | tojson }}'>
+      <legend>What must each author provide? (Edited volumes and journal issues)</legend>
       {% include "author_components.html" %}
       <p class="hint">Choose the folders to create now. You can change these requirements later.</p>
     </fieldset>
@@ -30,7 +30,7 @@
       const projectType = document.getElementById('type');
       const components = document.getElementById('volume-components');
       function showVolumeComponents() {
-        components.hidden = components.disabled = projectType.value !== components.dataset.type;
+        components.hidden = components.disabled = !JSON.parse(components.dataset.types).includes(projectType.value);
       }
       projectType.addEventListener('change', showVolumeComponents);
       showVolumeComponents();
