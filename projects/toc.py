@@ -19,9 +19,10 @@ def _volume(project_code):
     project = query.fetch_by_key(project_code)
     if project is None:
         raise KeyError('Project not found.')
-    if project[query.TYPE] != query.COLLECTION:
+    if not query.is_multi_author(project[query.TYPE]):
         raise ValueError(
-            'Table of contents requires an edited-volume project.')
+            'Table of contents requires an edited-volume '
+            'or journal-issue project.')
     return project
 
 
