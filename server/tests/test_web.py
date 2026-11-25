@@ -348,7 +348,8 @@ def test_contributors_page_missing_project(client):
     page = client.get('/web/projects/doesnotexist/contributors',
                       headers=_login_header(), follow_redirects=True)
     assert b'no longer exists' in page.data
-def test_create_edited_volume_with_selected_components(client):
+@pytest.mark.parametrize('proj_type', pqry.MULTI_AUTHOR_TYPES)
+def test_create_volume_with_selected_components(client, proj_type):
     from projects.storage import project_directory
     headers = _login_header()
     form = client.get('/web/projects', headers=headers)
@@ -356,7 +357,7 @@ def test_create_edited_volume_with_selected_components(client):
         assert f'name="{field}"'.encode() in form.data
     name = 'Volume with abstracts and keywords'
     client.post('/web/projects', headers=headers, data={
-        'name': name, 'type': pqry.COLLECTION,
+        'name': name, 'type': proj_type,
         'requires_abstract': 'on', 'requires_keywords': 'on'})
     code, = _codes_named(name)
     try:
@@ -372,10 +373,10 @@ def test_create_edited_volume_with_selected_components(client):
 
 # --- Screens for filling in the table of contents and authors' pieces
 
-@pytest.fixture
-def volume():
-    """An edited volume with two authors, cleaned up afterwards."""
-    code = pqry.add({**pqry.TEST_SAMPLE, pqry.TYPE: pqry.COLLECTION})
+@pytest.fixture(params=pqry.MULTI_AUTHOR_TYPES)
+def volume(request):
+    """A multi-author project with two authors, cleaned up afterwards."""
+    code = pqry.add({**pqry.TEST_SAMPLE, pqry.TYPE: request.param})
     names = [f'Fill {uuid4().hex[:8]}', f'Other {uuid4().hex[:8]}']
     pp.set_authors(code, names)
     ids = {author[people.NAME]: author[people.ID]
@@ -421,6 +422,9 @@ def test_toc_is_shared_with_the_contributor_editor(client, volume):
     editor_view = client.get(f'/api/editor/projects/{code}/toc',
                              headers=_login_header())
     assert editor_view.json == {'text': expected}
+    saved = client.post(f'/api/editor/projects/{code}/toc',
+                        headers=_login_header(), json={'text': expected})
+    assert saved.status_code == 200
     page = client.get(_materials_url(code), headers=_login_header())
     assert b'1. Intro' in page.data
 
@@ -538,3 +542,9 @@ def test_list_links_to_materials_for_volumes_only(client, volume,
     response = client.get('/web/projects', headers=_login_header())
     assert _materials_url(code).encode() in response.data
     assert _materials_url(project_code).encode() not in response.data
+
+
+def test_edit_links_to_materials_for_multi_author_projects(client, volume):
+    code, _, _ = volume
+    response = client.get(f'/web/projects/{code}/edit', headers=_login_header())
+    assert _materials_url(code).encode() in response.data

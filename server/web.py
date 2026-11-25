@@ -149,7 +149,6 @@ def project_list():
                            projects=all_projects,
                            multi_author_types=pqry.MULTI_AUTHOR_TYPES,
                            components=pqry.AUTHOR_COMPONENTS,
-                           collection_type=pqry.COLLECTION,
                            authors_by_code=authors_by_code,
                            type_choices=pqry.get_type_choices())
 
@@ -163,7 +162,7 @@ def project_create():
         pqry.TYPE: request.form.get(pqry.TYPE, ''),
         pqry.USER: _current_user(),
     }
-    if new_project[pqry.TYPE] == pqry.COLLECTION:
+    if pqry.is_multi_author(new_project[pqry.TYPE]):
         new_project.update({field: field in request.form
                             for field in pqry.REQUIREMENT_FIELDS})
     try:
@@ -192,7 +191,7 @@ def project_edit(code):
                     for author in pp.fetch_authors(code)]
     return render_template('web/project_edit.html', project=project,
                            type_choices=pqry.get_type_choices(),
-                           collection_type=pqry.COLLECTION,
+                           multi_author_types=pqry.MULTI_AUTHOR_TYPES,
                            author_names=author_names)
 
 
@@ -275,17 +274,18 @@ def _form_text(field):
     return text.replace('\r\n', '\n').replace('\r', '\n')
 
 
-def _edited_volume(code):
+def _multi_author_project(code):
     """
-    Returns the project if it exists and is an edited volume. Otherwise
+    Returns the project if it exists and supports author materials. Otherwise
     flashes why and returns None, so the caller can redirect.
     """
     project = _project_or_none(code)
     if project is None:
         flash('That project no longer exists.', 'error')
         return None
-    if project[pqry.TYPE] != pqry.COLLECTION:
-        flash('Materials screens are only for edited volumes.', 'error')
+    if not pqry.is_multi_author(project[pqry.TYPE]):
+        flash('Materials screens are only for edited volumes '
+              'and journal issues.', 'error')
         return None
     return project
 
@@ -313,7 +313,7 @@ def _piece_rows(project, record):
 @web.get('/projects/<code>/materials')
 def project_materials(code):
     """The table of contents, and what each author has provided so far."""
-    project = _edited_volume(code)
+    project = _multi_author_project(code)
     if project is None:
         return redirect(url_for('web.project_list'))
     authors = [{'person': person,
@@ -328,7 +328,7 @@ def project_materials(code):
 @web.post('/projects/<code>/toc')
 def project_toc_save(code):
     """Save the table of contents. The contributor editor shows the same."""
-    if _edited_volume(code) is None:
+    if _multi_author_project(code) is None:
         return redirect(url_for('web.project_list'))
     here = url_for('web.project_materials', code=code)
     text = _form_text('toc')
@@ -357,7 +357,7 @@ def _fill_in_target(code, person_id, piece):
     """
     if piece not in pp.PIECES:
         abort(404)
-    project = _edited_volume(code)
+    project = _multi_author_project(code)
     if project is None:
         return None, None, redirect(url_for('web.project_list'))
     person = _author_or_none(code, person_id)
