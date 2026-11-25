@@ -9,7 +9,6 @@ delete it.
 The pages live under /web so they don't collide with the API's Swagger
 page, which already uses "/".
 """
-from pathlib import Path
 from secrets import compare_digest
 
 from flask import (Blueprint, abort, current_app, flash, redirect,
@@ -327,19 +326,17 @@ def project_materials(code):
 
 @web.post('/projects/<code>/toc')
 def project_toc_save(code):
-    """Save an uploaded .md file as the table of contents."""
+    """Save an uploaded .md or .docx file as the table of contents."""
     if _multi_author_project(code) is None:
         return redirect(url_for('web.project_list'))
     here = url_for('web.project_materials', code=code)
     uploaded = request.files.get('file')
     if uploaded is None or not uploaded.filename:
-        flash('Choose a markdown (.md) file.', 'error')
-        return redirect(here)
-    if Path(uploaded.filename).suffix.lower() not in toc.EXTENSIONS:
-        flash('Choose a .md or .markdown file.', 'error')
+        flash('Choose a markdown (.md) or Word (.docx) file.', 'error')
         return redirect(here)
     try:
-        toc.save_file(code, uploaded.stream.read(toc.MAX_BYTES + 1))
+        toc.save_upload(code, uploaded.filename,
+                        uploaded.stream.read(toc.MAX_UPLOAD_BYTES + 1))
     except ValueError as err:
         flash(str(err), 'error')
         return redirect(here)

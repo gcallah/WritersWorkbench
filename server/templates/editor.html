@@ -43,13 +43,13 @@
         <p id="requirements-status" role="status" aria-live="polite"></p>
       </form>
       <form id="toc-form" class="project-toc" hidden>
-        <p class="toc-heading">Table of contents (markdown file)</p>
+        <p class="toc-heading">Table of contents (.md or .docx file)</p>
         <div class="toc-upload">
           <label class="file-picker" for="toc-file">
             <i data-lucide="file-up" aria-hidden="true"></i>
-            <span id="toc-file-name">Choose a .md file</span>
+            <span id="toc-file-name">Choose a .md or .docx file</span>
           </label>
-          <input id="toc-file" type="file" accept=".md,.markdown,text/markdown" disabled>
+          <input id="toc-file" type="file" accept=".md,.markdown,.docx,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled>
         </div>
         <button type="submit" id="toc-save" class="secondary" disabled>Upload table of contents</button>
         <p id="toc-status" role="status" aria-live="polite"></p>

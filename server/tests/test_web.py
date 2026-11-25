@@ -1,6 +1,7 @@
 """Tests for the projects web interface (issue #4)."""
 from base64 import b64encode
 from io import BytesIO
+import zipfile
 from uuid import uuid4
 from unittest.mock import Mock
 
@@ -434,12 +435,85 @@ def test_toc_is_shared_with_the_contributor_editor(client, volume):
     assert b'1. Intro' in page.data
 
 
+def _word_file(*paragraphs):
+    """The bytes of a tiny but real .docx file with these paragraphs."""
+    body = ''.join(f'<w:p><w:r><w:t>{text}</w:t></w:r></w:p>'
+                   for text in paragraphs)
+    ns = 'http://schemas.openxmlformats.org/'
+    parts = {
+        '[Content_Types].xml':
+            '<Types xmlns="' + ns + 'package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.'
+            'openxmlformats-package.relationships+xml"/>'
+            '<Override PartName="/word/document.xml" ContentType="'
+            'application/vnd.openxmlformats-officedocument.'
+            'wordprocessingml.document.main+xml"/></Types>',
+        '_rels/.rels':
+            '<Relationships xmlns="' + ns + 'package/2006/relationships">'
+            '<Relationship Id="rId1" Type="' + ns + 'officeDocument/2006/'
+            'relationships/officeDocument" Target="word/document.xml"/>'
+            '</Relationships>',
+        'word/document.xml':
+            '<w:document xmlns:w="' + ns + 'wordprocessingml/2006/main">'
+            '<w:body>' + body + '</w:body></w:document>',
+    }
+    data = BytesIO()
+    with zipfile.ZipFile(data, 'w') as archive:
+        for name, content in parts.items():
+            archive.writestr(name, content)
+    return data.getvalue()
+
+
+def test_toc_word_file_is_converted_to_markdown(client, volume):
+    code, _, _ = volume
+    word = _word_file('Introduction', 'Chapter one')
+    response = client.post(_toc_url(code), headers=_login_header(),
+                           data=_toc_upload(word, 'Contents.DOCX'),
+                           content_type='multipart/form-data',
+                           follow_redirects=True)
+    assert b'Saved the table of contents' in response.data
+    saved = toc.read(code)
+    assert 'Introduction' in saved and 'Chapter one' in saved
+    # What is stored is a markdown text file, not the Word file.
+    assert not saved.startswith('PK')
+    editor_view = client.get(f'/api/editor/projects/{code}/toc',
+                             headers=_login_header())
+    assert editor_view.json == {'text': saved}
+    # The contributor editor's endpoint takes Word files too.
+    response = client.post(f'/api/editor/projects/{code}/toc',
+                           headers=_login_header(),
+                           data=_toc_upload(_word_file('Second'), 'b.docx'),
+                           content_type='multipart/form-data')
+    assert response.status_code == 200
+    assert 'Second' in toc.read(code)
+
+
+def test_toc_bad_word_files_are_rejected(client, volume):
+    code, _, _ = volume
+    client.post(_toc_url(code), headers=_login_header(),
+                data=_toc_upload(b'Keep'), content_type='multipart/form-data')
+    url = f'/api/editor/projects/{code}/toc'
+    bad = [b'this is not a zip file', _word_file(''), b'']
+    for content in bad:
+        response = client.post(url, headers=_login_header(),
+                               data=_toc_upload(content, 'bad.docx'),
+                               content_type='multipart/form-data')
+        assert response.status_code == 400
+        assert toc.read(code) == 'Keep'
+    # The old binary .doc format is not accepted.
+    response = client.post(url, headers=_login_header(),
+                           data=_toc_upload(_word_file('x'), 'old.doc'),
+                           content_type='multipart/form-data')
+    assert response.status_code == 400
+    assert toc.read(code) == 'Keep'
+
+
 def test_toc_bad_uploads_are_rejected(client, volume):
     code, _, _ = volume
     client.post(_toc_url(code), headers=_login_header(),
                 data=_toc_upload(b'Keep'), content_type='multipart/form-data')
     bad = [(b'a' * 100_001, 'big.md', b'at most 100,000 characters'),
-           (b'text', 'notes.txt', b'Choose a .md'),
+           (b'text', 'notes.txt', b'Choose a .md, .markdown or .docx'),
            (b'', 'empty.md', b'not empty'),
            (b'\xff\xfe\x00bad', 'bad.md', b'UTF-8')]
     for content, name, message in bad:

@@ -6,9 +6,9 @@
 
   <form class="panel wide" method="post" enctype="multipart/form-data" action="{{ url_for('web.project_toc_save', code=project.code) }}">
     <h2>Table of contents</h2>
-    <label for="toc-file">Upload the table of contents as a markdown (.md) file</label>
-    <input id="toc-file" name="file" type="file" accept=".md,.markdown,text/markdown" required>
-    <p class="hint">UTF-8 text, up to {{ "{:,}".format(max_toc) }} characters. A new upload replaces the current file. The contributor editor shows the same file.</p>
+    <label for="toc-file">Upload the table of contents as a markdown (.md) or Word (.docx) file</label>
+    <input id="toc-file" name="file" type="file" accept=".md,.markdown,.docx,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
+    <p class="hint">Up to {{ "{:,}".format(max_toc) }} characters of text (Word files up to 10 MB are converted to markdown). A new upload replaces the current file. The contributor editor shows the same file.</p>
     {% if toc_text %}
       <details>
         <summary>Current table of contents</summary>
