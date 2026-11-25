@@ -133,10 +133,11 @@ dialog label { display: block; margin-bottom: 8px; font-size: 12px; }
 a.desk-label { text-decoration: none; }
 a.desk-label:hover { color: var(--ink); }
 .project-toc { margin: 0 0 24px; }
-.project-toc label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px; }
-#toc-text { width: 100%; min-height: 160px; height: 200px; padding: 10px; margin-bottom: 10px; font-family: Consolas, Menlo, monospace; font-size: 13px; line-height: 1.5; border-top-width: 1px; }
+.project-toc .toc-heading { margin: 0 0 8px; font-weight: 600; font-size: 13px; color: var(--ink); }
 .project-toc p { min-height: 1em; margin: 7px 0 0; color: var(--muted); font-size: 12px; }
 .toc-upload { margin: 0 0 10px; }
+#toc-current { margin-top: 10px; font-size: 12px; }
+#toc-preview { max-height: 220px; overflow: auto; margin: 8px 0 0; padding: 10px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; font-family: Consolas, Menlo, monospace; font-size: 12px; line-height: 1.5; }
 #toc-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
 .comment-thread { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }

@@ -9,16 +9,16 @@ delete it.
 The pages live under /web so they don't collide with the API's Swagger
 page, which already uses "/".
 """
+from pathlib import Path
 from secrets import compare_digest
 
 from flask import (Blueprint, abort, current_app, flash, redirect,
                    render_template, request, url_for)
 
-from projects import materials
+from projects import materials, toc
 import projects.person_project as pp
 import projects.people as people
 import projects.query as pqry
-from server.consts import MAX_TOC_CHARS
 
 # The edit form's box where the editor types one author per line.
 AUTHORS_FIELD = 'authors'
@@ -321,27 +321,30 @@ def project_materials(code):
                     code, person[people.ID]))}
                for person in pp.fetch_authors(code)]
     return render_template('web/project_materials.html', project=project,
-                           toc=project.get('toc') or '', authors=authors,
-                           max_toc=MAX_TOC_CHARS)
+                           toc_text=toc.read(code), authors=authors,
+                           max_toc=toc.MAX_LENGTH)
 
 
 @web.post('/projects/<code>/toc')
 def project_toc_save(code):
-    """Save the table of contents. The contributor editor shows the same."""
+    """Save an uploaded .md file as the table of contents."""
     if _multi_author_project(code) is None:
         return redirect(url_for('web.project_list'))
     here = url_for('web.project_materials', code=code)
-    text = _form_text('toc')
-    if len(text) > MAX_TOC_CHARS:
-        flash('The table of contents must be at most 100,000 characters.',
-              'error')
+    uploaded = request.files.get('file')
+    if uploaded is None or not uploaded.filename:
+        flash('Choose a markdown (.md) file.', 'error')
+        return redirect(here)
+    if Path(uploaded.filename).suffix.lower() not in toc.EXTENSIONS:
+        flash('Choose a .md or .markdown file.', 'error')
         return redirect(here)
     try:
-        saved = pqry.update(code, {'toc': text})
+        toc.save_file(code, uploaded.stream.read(toc.MAX_BYTES + 1))
     except ValueError as err:
         flash(str(err), 'error')
         return redirect(here)
-    if not saved:
+    except (KeyError, OSError) as err:
+        current_app.logger.error('Could not save table of contents: %s', err)
         flash('Could not save the table of contents. Please try again.',
               'error')
         return redirect(here)

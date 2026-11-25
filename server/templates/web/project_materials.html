@@ -4,12 +4,20 @@
   <p><a href="{{ url_for('web.project_list') }}">&larr; Back to projects</a></p>
   <h1>{{ project.name }}: materials</h1>
 
-  <form class="panel wide" method="post" action="{{ url_for('web.project_toc_save', code=project.code) }}">
+  <form class="panel wide" method="post" enctype="multipart/form-data" action="{{ url_for('web.project_toc_save', code=project.code) }}">
     <h2>Table of contents</h2>
-    <label for="toc">Write the table of contents in markdown</label>
-    <textarea id="toc" name="toc" rows="10" maxlength="{{ max_toc }}" placeholder="# Contents&#10;&#10;1. Introduction&#10;2. Chapter one">{{ toc }}</textarea>
-    <p class="hint">Up to {{ "{:,}".format(max_toc) }} characters. The contributor editor shows the same text.</p>
-    <button class="primary" type="submit">Save table of contents</button>
+    <label for="toc-file">Upload the table of contents as a markdown (.md) file</label>
+    <input id="toc-file" name="file" type="file" accept=".md,.markdown,text/markdown" required>
+    <p class="hint">UTF-8 text, up to {{ "{:,}".format(max_toc) }} characters. A new upload replaces the current file. The contributor editor shows the same file.</p>
+    {% if toc_text %}
+      <details>
+        <summary>Current table of contents</summary>
+        <pre>{{ toc_text }}</pre>
+      </details>
+    {% else %}
+      <p class="empty">No table of contents uploaded yet.</p>
+    {% endif %}
+    <button class="primary" type="submit">Upload table of contents</button>
   </form>
 
   <h2>Authors' materials</h2>

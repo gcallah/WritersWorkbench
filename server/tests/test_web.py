@@ -1,11 +1,12 @@
 """Tests for the projects web interface (issue #4)."""
 from base64 import b64encode
+from io import BytesIO
 from uuid import uuid4
 from unittest.mock import Mock
 
 import pytest
 
-from projects import materials
+from projects import materials, toc
 import projects.person_project as pp
 import projects.people as people
 import projects.query as pqry
@@ -410,34 +411,69 @@ def test_materials_page_lists_authors_as_pending(client, volume):
     assert b'Received' not in response.data
 
 
+def _toc_upload(content, name='toc.md'):
+    return {'file': (BytesIO(content), name)}
+
+
 def test_toc_is_shared_with_the_contributor_editor(client, volume):
     code, _, _ = volume
     response = client.post(_toc_url(code), headers=_login_header(),
-                           data={'toc': '# Contents\r\n\r\n1. Intro'},
+                           data=_toc_upload(b'# Contents\r\n\r\n1. Intro'),
+                           content_type='multipart/form-data',
                            follow_redirects=True)
     assert response.status_code == 200
     assert b'Saved the table of contents' in response.data
     expected = '# Contents\n\n1. Intro'
-    assert pqry.fetch_by_key(code).get('toc') == expected
+    assert toc.read(code) == expected
+    # It is a markdown file in the project folder, not a project field.
+    assert 'toc' not in pqry.fetch_by_key(code)
     editor_view = client.get(f'/api/editor/projects/{code}/toc',
                              headers=_login_header())
     assert editor_view.json == {'text': expected}
-    saved = client.post(f'/api/editor/projects/{code}/toc',
-                        headers=_login_header(), json={'text': expected})
-    assert saved.status_code == 200
     page = client.get(_materials_url(code), headers=_login_header())
     assert b'1. Intro' in page.data
 
 
-def test_toc_too_long_is_rejected(client, volume):
+def test_toc_bad_uploads_are_rejected(client, volume):
     code, _, _ = volume
     client.post(_toc_url(code), headers=_login_header(),
-                data={'toc': 'Keep'})
-    response = client.post(_toc_url(code), headers=_login_header(),
-                           data={'toc': 'a' * 100_001},
-                           follow_redirects=True)
-    assert b'at most 100,000 characters' in response.data
-    assert pqry.fetch_by_key(code).get('toc') == 'Keep'
+                data=_toc_upload(b'Keep'), content_type='multipart/form-data')
+    bad = [(b'a' * 100_001, 'big.md', b'at most 100,000 characters'),
+           (b'text', 'notes.txt', b'Choose a .md'),
+           (b'', 'empty.md', b'not empty'),
+           (b'\xff\xfe\x00bad', 'bad.md', b'UTF-8')]
+    for content, name, message in bad:
+        response = client.post(_toc_url(code), headers=_login_header(),
+                               data=_toc_upload(content, name),
+                               content_type='multipart/form-data',
+                               follow_redirects=True)
+        assert message in response.data
+        assert toc.read(code) == 'Keep'
+    # No file at all, and a plain form field instead of a file.
+    for data in ({}, {'toc': 'typed text'}):
+        response = client.post(_toc_url(code), headers=_login_header(),
+                               data=data, follow_redirects=True)
+        assert b'Choose a markdown' in response.data
+        assert toc.read(code) == 'Keep'
+
+
+def test_editor_toc_upload_never_returns_500(client, volume):
+    code, _, _ = volume
+    url = f'/api/editor/projects/{code}/toc'
+    headers = _login_header()
+    # JSON bodies, including a non-string "text", are refused cleanly.
+    for body in ({'text': 5}, {'text': ['a']}, {'text': None}):
+        response = client.post(url, headers=headers, json=body)
+        assert response.status_code == 415
+    response = client.post(url, headers=headers,
+                           data=_toc_upload(b'# Editor upload'),
+                           content_type='multipart/form-data')
+    assert response.status_code == 200
+    assert toc.read(code) == '# Editor upload'
+    response = client.post(url, headers=headers,
+                           data=_toc_upload(b'x', 'x.exe'),
+                           content_type='multipart/form-data')
+    assert response.status_code == 400
 
 
 def test_fill_in_and_edit_a_piece(client, volume):
@@ -527,9 +563,10 @@ def test_materials_need_login_and_same_site_posts(client, volume):
     headers = _login_header()
     headers['Sec-Fetch-Site'] = 'cross-site'
     response = client.post(_toc_url(code), headers=headers,
-                           data={'toc': 'Sneaky'})
+                           data=_toc_upload(b'Sneaky'),
+                           content_type='multipart/form-data')
     assert response.status_code == 403
-    assert not pqry.fetch_by_key(code).get('toc')
+    assert toc.read(code) == ''
     response = client.post(_piece_url(code, ids[names[0]], 'bio'),
                            headers=headers, data={'text': 'Sneaky'})
     assert response.status_code == 403

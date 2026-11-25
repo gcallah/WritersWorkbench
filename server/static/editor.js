@@ -129,8 +129,9 @@ let projectCode = '';
 let projectsAvailable = false;
 const requirementFields = Array.from(document.querySelectorAll('[data-requirement]'), el => el.id);
 let savedRequirements = null;
-// The project's table of contents as last loaded or saved; null until loaded.
-let savedToc = null;
+// Whether the project's table of contents has been loaded (it is a file the
+// editor uploads; there is no text box).
+let tocLoaded = false;
 let comments = [];
 
 function commentDraftDirty() {
@@ -202,8 +203,8 @@ async function loadRequirements() {
   }
 }
 
-function tocDirty() {
-  return savedToc !== null && byId('toc-text').value !== savedToc;
+function tocPending() {
+  return byId('toc-file').files.length > 0;
 }
 
 function tocStatus(message, error = false) {
@@ -211,20 +212,31 @@ function tocStatus(message, error = false) {
   byId('toc-status').classList.toggle('error', error);
 }
 
+function clearTocFile() {
+  byId('toc-file').value = '';
+  byId('toc-file-name').textContent = 'Choose a .md file';
+}
+
+function showToc(text) {
+  byId('toc-preview').textContent = text;
+  byId('toc-current').hidden = !text;
+}
+
 async function loadToc() {
-  savedToc = null;
-  byId('toc-text').value = '';
+  tocLoaded = false;
+  clearTocFile();
+  showToc('');
   tocStatus('');
   updateControls();
   if (!projectCode) return;
   tocStatus('Loading table of contents...');
   try {
     const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/toc`);
-    savedToc = data.text;
-    byId('toc-text').value = savedToc;
-    tocStatus(savedToc ? 'Table of contents loaded.' : 'No table of contents yet.');
+    tocLoaded = true;
+    showToc(data.text);
+    tocStatus(data.text ? 'Table of contents loaded.' : 'No table of contents yet.');
   } catch (error) {
-    tocStatus(`Could not load the table of contents: ${error.message} Select the project again to retry.`, true);
+    tocStatus(`Could not load the table of contents: ${error.message} Refresh the page to retry.`, true);
   }
 }
 
@@ -273,13 +285,13 @@ function documentPending() {
 
 function dirty() {
   return pieceDirty() || refereeDirty() || documentPending() ||
-    requirementsDirty() || tocDirty() || commentDraftDirty();
+    requirementsDirty() || tocPending() || commentDraftDirty();
 }
 
 function allowDiscard(includeRequirements = false) {
   const unsaved = pieceDirty() || refereeDirty() || documentPending() ||
     commentDraftDirty() ||
-    (includeRequirements && (requirementsDirty() || tocDirty()));
+    (includeRequirements && (requirementsDirty() || tocPending()));
   return !unsaved || confirm('Discard unsaved changes?');
 }
 
@@ -301,9 +313,8 @@ function updateControls() {
   byId('requirements-fields').disabled = busy || creating || savedRequirements === null;
   byId('requirements-save').disabled = busy || creating || !requirementsDirty();
   byId('toc-form').hidden = !projectCode;
-  byId('toc-text').disabled = busy || creating || savedToc === null;
-  byId('toc-file').disabled = busy || creating || savedToc === null;
-  byId('toc-save').disabled = busy || creating || !tocDirty() || !byId('toc-text').value.trim();
+  byId('toc-file').disabled = busy || creating || !tocLoaded;
+  byId('toc-save').disabled = busy || creating || !tocLoaded || !tocPending();
   byId('comment-input').disabled = busy || creating || selected === null;
   byId('post-comment').disabled = busy || creating || selected === null ||
     !byId('comment-input').value.trim() ||
@@ -590,7 +601,8 @@ byId('project-select').addEventListener('change', async () => {
   projectCode = selector.value;
   clearDocumentUpload();
   savedRequirements = null;
-  savedToc = null;
+  tocLoaded = false;
+  clearTocFile();
   selected = null;
   contributors = [];
   comments = [];
@@ -647,63 +659,40 @@ byId('requirements-form').addEventListener('submit', async (event) => {
   }
 });
 
-byId('toc-text').addEventListener('input', () => {
-  tocStatus(tocDirty() ? 'Unsaved changes' : 'Table of contents unchanged');
-  updateControls();
-});
-
-// Choosing a .md file only fills the box; the editor reviews it and then saves.
-byId('toc-file').addEventListener('change', async () => {
-  const input = byId('toc-file');
-  const file = input.files[0];
-  input.value = '';  // so choosing the same file again still triggers this
-  if (!file || busy || creating || !projectCode || savedToc === null) return;
-  if (!/\.(md|markdown)$/i.test(file.name)) {
+// Choosing a file only checks it; nothing is saved until Upload is selected.
+byId('toc-file').addEventListener('change', () => {
+  const file = byId('toc-file').files[0];
+  if (!file) {
+    clearTocFile();
+  } else if (!/\.(md|markdown)$/i.test(file.name)) {
+    clearTocFile();
     tocStatus('Choose a .md (markdown) file.', true);
-    return;
-  }
-  if (file.size > 1_000_000) {
+  } else if (file.size > 400000) {
+    clearTocFile();
     tocStatus('That file is too large. Use at most 100,000 characters.', true);
-    return;
+  } else {
+    byId('toc-file-name').textContent = file.name;
+    tocStatus(`Ready to upload ${file.name}. This replaces the current table of contents.`);
   }
-  const project = projectCode;
-  let text;
-  try {
-    const bytes = await file.arrayBuffer();
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes).replace(/\r\n?/g, '\n');
-  } catch (error) {
-    tocStatus('Could not read that file. Save it as UTF-8 text and try again.', true);
-    return;
-  }
-  if (project !== projectCode) return;  // the project changed while reading
-  if (!text.trim()) {
-    tocStatus('That file is empty.', true);
-    return;
-  }
-  if (text.length > 100000) {
-    tocStatus('That file is too long. Use at most 100,000 characters.', true);
-    return;
-  }
-  const current = byId('toc-text').value;
-  if (current.trim() && current !== text && !confirm('Replace the text in the box with this file?')) return;
-  byId('toc-text').value = text;
-  tocStatus(`Loaded ${file.name}. Review it, then select Save table of contents.`);
   updateControls();
 });
 
 byId('toc-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  if (busy || creating || !projectCode || !tocDirty() || !byId('toc-text').value.trim()) return;
+  const file = byId('toc-file').files[0];
+  if (busy || creating || !projectCode || !tocLoaded || !file) return;
   busy = true;
   updateControls();
-  tocStatus('Saving table of contents...');
+  tocStatus('Uploading table of contents...');
   try {
+    const form = new FormData();
+    form.append('file', file);
     const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/toc`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: byId('toc-text').value }),
+      method: 'POST', body: form,
     });
-    savedToc = data.text;
-    tocStatus('Table of contents saved.');
+    clearTocFile();
+    showToc(data.text);
+    tocStatus('Table of contents uploaded.');
   } catch (error) {
     tocStatus(error.message, true);
   } finally {
@@ -724,6 +713,7 @@ async function initialize() {
       projectCode = pageProject;
       byId('project-select').value = pageProject;
       await loadRequirements();
+      await loadToc();
     }
     await loadContributors();
   } catch (error) {
