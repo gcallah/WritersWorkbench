@@ -5,7 +5,6 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-import projects.query as projects_query
 from server.project_handler import ContributorStore, ProjectContributorStore
 from server.web import same_site_request
 from projects import toc
