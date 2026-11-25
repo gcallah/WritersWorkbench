@@ -181,11 +181,9 @@ def read_toc(code):
 
 @editor.post('/api/editor/projects/<code>/toc')
 def upload_toc(code):
-    """Save an uploaded markdown file as the table of contents."""
+    """Save an uploaded .md or .docx file as the table of contents."""
     uploaded = request.files.get('file')
     if uploaded is None or not uploaded.filename:
-        raise ValueError('Choose a markdown (.md) file.')
-    if Path(uploaded.filename).suffix.lower() not in toc.EXTENSIONS:
-        raise ValueError('Choose a .md or .markdown file.')
-    data = uploaded.stream.read(toc.MAX_BYTES + 1)
-    return jsonify(text=toc.save_file(code, data))
+        raise ValueError('Choose a markdown (.md) or Word (.docx) file.')
+    data = uploaded.stream.read(toc.MAX_UPLOAD_BYTES + 1)
+    return jsonify(text=toc.save_upload(code, uploaded.filename, data))

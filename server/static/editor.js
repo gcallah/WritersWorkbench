@@ -214,7 +214,7 @@ function tocStatus(message, error = false) {
 
 function clearTocFile() {
   byId('toc-file').value = '';
-  byId('toc-file-name').textContent = 'Choose a .md file';
+  byId('toc-file-name').textContent = 'Choose a .md or .docx file';
 }
 
 function showToc(text) {
@@ -664,12 +664,14 @@ byId('toc-file').addEventListener('change', () => {
   const file = byId('toc-file').files[0];
   if (!file) {
     clearTocFile();
-  } else if (!/\.(md|markdown)$/i.test(file.name)) {
+  } else if (!/\.(md|markdown|docx)$/i.test(file.name)) {
     clearTocFile();
-    tocStatus('Choose a .md (markdown) file.', true);
-  } else if (file.size > 400000) {
+    tocStatus('Choose a .md (markdown) or .docx (Word) file.', true);
+  } else if (file.size > (/\.docx$/i.test(file.name) ? 10000000 : 400000)) {
     clearTocFile();
-    tocStatus('That file is too large. Use at most 100,000 characters.', true);
+    tocStatus(/\.docx$/i.test(file.name) ?
+      'That Word file is too large. Use at most 10 MB.' :
+      'That file is too large. Use at most 100,000 characters.', true);
   } else {
     byId('toc-file-name').textContent = file.name;
     tocStatus(`Ready to upload ${file.name}. This replaces the current table of contents.`);

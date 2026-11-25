@@ -4,3 +4,4 @@ flask==3.0.3
 git+https://github.com/AthenaKouKou/BackEndCore.git
 icecream
 requests
+mammoth==1.11.0
