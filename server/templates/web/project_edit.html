@@ -3,7 +3,7 @@
 {% block content %}
   <p><a href="{{ url_for('web.project_list') }}">&larr; Back to projects</a></p>
   <h1>{{ project.name }}</h1>
-  {% if project.type == collection_type %}
+  {% if project.type in multi_author_types %}
     <p><a href="{{ url_for('web.project_materials', code=project.code) }}">Fill in the table of contents and authors' bios, addresses and more &rarr;</a></p>
   {% endif %}
   <form class="panel" method="post" action="{{ url_for('web.project_update', code=project.code) }}">

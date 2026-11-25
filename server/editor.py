@@ -178,9 +178,10 @@ def read_toc(code):
     project = projects_query.fetch_by_key(code)
     if project is None:
         raise KeyError('Project not found.')
-    if project[projects_query.TYPE] != projects_query.COLLECTION:
+    if not projects_query.is_multi_author(project[projects_query.TYPE]):
         raise ValueError(
-            'Table of contents requires an edited-volume project.'
+            'Table of contents requires an edited-volume '
+            'or journal-issue project.'
         )
     return jsonify(text=project.get('toc') or '')
 
@@ -191,9 +192,10 @@ def save_toc(code):
     project = projects_query.fetch_by_key(code)
     if project is None:
         raise KeyError('Project not found.')
-    if project[projects_query.TYPE] != projects_query.COLLECTION:
+    if not projects_query.is_multi_author(project[projects_query.TYPE]):
         raise ValueError(
-            'Table of contents requires an edited-volume project.'
+            'Table of contents requires an edited-volume '
+            'or journal-issue project.'
         )
     text = _payload().get('text')
     if text is None:

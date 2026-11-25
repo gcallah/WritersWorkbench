@@ -67,7 +67,7 @@
                 {% if project.type in multi_author_types %}
                   <a class="button" href="{{ url_for('web.project_contributors', code=project.code) }}">Contributors</a>
                 {% endif %}
-                {% if project.type == collection_type %}
+                {% if project.type in multi_author_types %}
                   <a class="button" href="{{ url_for('web.project_materials', code=project.code) }}">Materials</a>
                 {% endif %}
                 <a class="button" href="{{ edit_url }}">Edit</a>
