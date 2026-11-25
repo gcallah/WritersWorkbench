@@ -4,14 +4,45 @@ import re
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import RLock
+from datetime import datetime, timezone
 from uuid import uuid4
 
-from projects import contributors, materials
+from projects import materials, people, storage
+import projects.person_project as pp
 
 
 PIECE_TYPES = {'bio': 'Bio', 'submission': 'Submission'}
 MAX_TEXT_LENGTH = 100_000
+MAX_COMMENT_LENGTH = 5_000
 _LOCK = RLock()
+
+
+def _new_comment(text):
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('Enter a comment before posting.')
+    if len(text) > MAX_COMMENT_LENGTH:
+        raise ValueError('Comments must be at most 5,000 characters.')
+    return {
+        'id': uuid4().hex,
+        'author': 'Editor',
+        'text': text.strip(),
+        'created_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _read_comments(path):
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def _append_comment(path, text):
+    comment = _new_comment(text)
+    comments = _read_comments(path)
+    comments.append(comment)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    ContributorStore._write(path, json.dumps(comments, ensure_ascii=False))
+    return comment
 
 
 class ContributorStore:
@@ -89,6 +120,22 @@ class ContributorStore:
             self._write(record_path, json.dumps(record))
         return record
 
+    def get_comments(self, contributor_id, piece_type):
+        if piece_type not in PIECE_TYPES:
+            raise ValueError('Unknown piece type.')
+        with _LOCK:
+            directory = self._directory(contributor_id)
+            return _read_comments(
+                directory / 'comments' / f'{piece_type}.json')
+
+    def add_comment(self, contributor_id, piece_type, text):
+        if piece_type not in PIECE_TYPES:
+            raise ValueError('Unknown piece type.')
+        with _LOCK:
+            directory = self._directory(contributor_id)
+            return _append_comment(
+                directory / 'comments' / f'{piece_type}.json', text)
+
     def save_file(self, contributor_id, piece_type, data, extension):
         """Save an uploaded document, then mark its piece received."""
         if piece_type not in PIECE_TYPES:
@@ -131,30 +178,71 @@ class ContributorStore:
 
 
 class ProjectContributorStore:
-    """Use the same editor interface for contributors belonging to a book."""
+    """
+    The editor's contributors for one book are the book's authors, from
+    the People and person_project tables (issue #34).
+    """
 
     def __init__(self, project_code):
-        contributors.require_volume(project_code)
+        pp.require_volume(project_code)
         self.project_code = project_code
 
+    def _record(self, person):
+        """What the editor shows for one author: name and piece status."""
+        return {'id': person[people.ID], 'name': person[people.NAME],
+                **pp.fetch_author_status(self.project_code,
+                                         person[people.ID])}
+
+    def _fetch(self, person_id):
+        """This author's record; KeyError if they aren't on this book."""
+        person = people.fetch_by_key(person_id)
+        if person is None:
+            raise KeyError('Contributor not found in this project.')
+        return self._record(person)
+
     def list_contributors(self):
-        return contributors.fetch_list(self.project_code)
+        return [self._record(person)
+                for person in pp.fetch_authors(self.project_code)]
 
     def add_contributor(self, name):
-        return contributors.add(self.project_code, name)
+        """Add an author by name, reusing a person who has that name."""
+        found = people.fetch_by_name(name)
+        person_id = (next(iter(found)) if found
+                     else people.add(name, [people.AUTHOR]))
+        pp.link(person_id, self.project_code, people.AUTHOR)
+        return self._fetch(person_id)
 
     def get_piece(self, contributor_id, piece_type):
         return materials.read_text(self.project_code, contributor_id,
                                    piece_type)
 
     def save_piece(self, contributor_id, piece_type, text):
-        return materials.save_text(self.project_code, contributor_id,
-                                   piece_type, text)
+        materials.save_text(self.project_code, contributor_id,
+                            piece_type, text)
+        return self._fetch(contributor_id)
+
+    def _comments_path(self, contributor_id, piece_type):
+        if piece_type not in pp.PIECES:
+            raise ValueError('Unknown piece type.')
+        self._fetch(contributor_id)
+        return (storage.project_directory(self.project_code) / 'comments'
+                / contributor_id / f'{piece_type}.json')
+
+    def get_comments(self, contributor_id, piece_type):
+        with _LOCK:
+            return _read_comments(
+                self._comments_path(contributor_id, piece_type))
+
+    def add_comment(self, contributor_id, piece_type, text):
+        with _LOCK:
+            return _append_comment(
+                self._comments_path(contributor_id, piece_type), text)
 
     def save_file(self, contributor_id, piece_type, data, extension):
-        return materials.save_file(self.project_code, contributor_id,
-                                   piece_type, data, extension)
+        materials.save_file(self.project_code, contributor_id,
+                            piece_type, data, extension)
+        return self._fetch(contributor_id)
 
     def set_referee(self, contributor_id, has_referee):
-        return contributors.set_referee(self.project_code, contributor_id,
-                                        has_referee)
+        pp.set_referee(self.project_code, contributor_id, has_referee)
+        return self._fetch(contributor_id)

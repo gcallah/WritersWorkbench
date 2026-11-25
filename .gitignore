@@ -181,3 +181,8 @@ cython_debug/
 
 # SQLite databases
 database/
+
+# Locally cloned dependency repository
+/BackEndCore/
+WritersWorkbench-venv/
+WritersWorkbench-venv/

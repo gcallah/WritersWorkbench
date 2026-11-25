@@ -1,11 +1,10 @@
-# Author requirements: issues #14, #15 and #16
+# Edited-volume author requirements
 
-Editors can select an edited-volume project at `/editor`, answer "What must
-each author provide?" using the three checkboxes, and save the requirements.
-The settings apply to all authors in that project. They can be changed later.
-They do not mark anything as received or remove existing submissions.
+On the Projects page, select **Edited volume (multi-author)**. Before
+creating it, check the items each author should provide. Other project types
+do not use this form. Edit the saved choices later in the contributor editor.
 
-| Issue | Project field | Checkbox |
+| Checkbox | Project field | Folder |
 | --- | --- | --- |
 | #14 | `requires_bio` | A biography |
 | #15 | `requires_permission` | Permission to publish |
@@ -39,10 +38,13 @@ omit these fields. Pre-fill edit forms from `fetch_by_key()`.
 The existing Projects API accepts and documents the same optional fields. Its
 current access controls are unchanged. The contributor editor instead uses:
 
-- GET `/api/editor/projects/<code>/requirements`
-- POST `/api/editor/projects/<code>/requirements`
+- GET `/Projects/requirements/<code>`
+- PUT `/Projects/requirements/<code>`
 
-These use the editor's existing shared Basic Auth. POST requires same-origin
+(These moved from `/api/editor/projects/<code>/requirements` into the Projects
+API in issue #22.)
+
+These use the editor's existing shared Basic Auth. PUT requires same-origin
 JSON, containing only one or more of the three boolean settings. Responses are
 `{"requirements": {"requires_bio": false, "requires_permission": false,
 "requires_address": false}}`. Missing projects return 404. Non-edited-volume
@@ -74,3 +76,18 @@ these as project settings, separate from each author's submission status.
 Automated coverage is included in `make all_tests`: boolean validation, legacy
 records, persistence, partial updates, project isolation, editor access,
 existing Projects API compatibility, file/receipt preservation and save errors.
+| A biography | `requires_bio` | bios |
+| Permission to publish | `requires_permission` | permissions |
+| An address | `requires_address` | addresses |
+| An abstract | `requires_abstract` | abstracts |
+| Keywords | `requires_keywords` | keywords |
+
+All settings default to false, including missing fields on older records.
+The project keeps its core chapters, drafts and Proposal folders. Checking
+an item creates the corresponding folder; unchecking it never removes files.
+Voluntary submissions create just the folder they need. Project settings do
+not mark anything as received. Referee assignment remains a per-paper choice.
+
+The Projects API accepts these boolean fields on creation and update. The
+editor reads or updates them at `/api/editor/projects/<code>/requirements`
+(GET or POST). Omitted fields are unchanged on update.

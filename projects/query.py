@@ -7,7 +7,7 @@ from uuid import uuid4
 from backendcore.data.caching import needs_cache, get_cache
 import backendcore.data.fields as cflds
 
-from projects.storage import prepare_project
+from projects.storage import AUTHOR_COMPONENTS, prepare_project
 
 DB = 'projectsDB'
 COLLECT = 'Projects'
@@ -24,7 +24,7 @@ REQUIRED_FLDS = [NAME, USER, TYPE]
 REQUIRES_BIO = 'requires_bio'
 REQUIRES_PERMISSION = 'requires_permission'
 REQUIRES_ADDRESS = 'requires_address'
-REQUIREMENT_FIELDS = (REQUIRES_BIO, REQUIRES_PERMISSION, REQUIRES_ADDRESS)
+REQUIREMENT_FIELDS = tuple(AUTHOR_COMPONENTS)
 
 
 def _check_requirements(project):
@@ -48,11 +48,13 @@ def _with_requirements(project):
 SOLO_BOOK = 'solo_book'
 COLLECTION = 'collection'
 ESSAY = 'essay'
+JOURNAL_ISSUE = 'journal_issue'
 
 PROJECT_TYPES = {
     SOLO_BOOK: {cflds.DESCR: 'Solo Book'},
     COLLECTION: {cflds.DESCR: 'Edited volume (multi-author)'},
     ESSAY: {cflds.DESCR: 'Essay'},
+    JOURNAL_ISSUE: {cflds.DESCR: 'Journal Issue'},
 }
 
 FIELDS = {
@@ -156,7 +158,7 @@ def add(project: dict):
     _check_requirements(project)
     project = _with_requirements(project)
     project[CODE] = uuid4().hex
-    prepare_project(project[CODE], project[TYPE] == COLLECTION)
+    prepare_project(project[CODE], is_multi_author(project[TYPE]), project)
     get_cache(COLLECT).add(project)
     return project[CODE]
 
@@ -165,7 +167,7 @@ def add(project: dict):
 def update(code, update_dict: dict):
     """
     Update the fields in update_dict for the project with this code.
-    The code itself can't be changed.
+    The code and original project type cannot change.
     """
     if CODE in update_dict:
         raise ValueError(f'Project {CODE} can not be updated.')
@@ -176,7 +178,11 @@ def update(code, update_dict: dict):
     existing = fetch_by_key(code)
     if existing is None:
         raise ValueError(f'No project with code {code}')
-    prepare_project(code, update_dict.get(TYPE, existing[TYPE]) == COLLECTION)
+    if TYPE in update_dict and update_dict[TYPE] != existing[TYPE]:
+        raise ValueError('Project type cannot change after creation. '
+                         'Delete this project and create one of the new type.')
+    settings = {**existing, **update_dict}
+    prepare_project(code, is_multi_author(settings[TYPE]), settings)
     return get_cache(COLLECT).update(code, update_dict)
 
 
@@ -208,3 +214,13 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# Multi-author project types: these get contributors, author requirements,
+# and folders for contributor materials (bios, abstracts, and so on).
+MULTI_AUTHOR_TYPES = (COLLECTION, JOURNAL_ISSUE)
+
+
+def is_multi_author(proj_type):
+    """True if this project type collects work from several contributors."""
+    return proj_type in MULTI_AUTHOR_TYPES

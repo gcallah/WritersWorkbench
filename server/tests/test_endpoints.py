@@ -9,9 +9,10 @@ from uuid import uuid4
 import pytest
 
 import projects.people as people
-import server.endpoints as ep
+import server.apis as ep
+from server.endpoints import app
 
-TEST_CLIENT = ep.app.test_client()
+TEST_CLIENT = app.test_client()
 
 
 def test_hello_get():
@@ -43,10 +44,11 @@ def test_endpoints_read_preserves_routes_and_methods():
     assert response.status_code == HTTPStatus.OK
     endpoint_docs = response.get_json()[ep.ENDPOINT_STR]
     assert set(endpoint_docs[f'/{ep.HELLO}']) == {'get', 'post'}
-    assert set(endpoint_docs['/editor']) == {'get'}
+    assert set(endpoint_docs['/web/projects/<code>/contributors']) == {
+        'get'}
     assert set(endpoint_docs['/api/contributors']) == {'get', 'post'}
     assert all(endpoint_docs[f'/{ep.HELLO}'].values())
-    assert endpoint_docs['/editor']['get']
+    assert endpoint_docs['/web/projects/<code>/contributors']['get']
     assert not {'/', '/swagger.json', '/swaggerui/<path:filename>',
                 '/static/<path:filename>'}.intersection(endpoint_docs)
 
@@ -68,8 +70,8 @@ def temp_project():
 
 
 def test_check_access():
-    with ep.app.test_request_context(query_string=USER_PARAM,
-                                     headers=AUTH_HDRS):
+    with app.test_request_context(query_string=USER_PARAM,
+                                  headers=AUTH_HDRS):
         assert ep.check_access(ep.request) == ep.pqry.TEST_USER
 
 
@@ -154,9 +156,10 @@ def test_project_update_not_there():
     assert resp.status_code == HTTPStatus.NOT_FOUND
 
 
-def test_project_update_bad_type(temp_project):
+@pytest.mark.parametrize('new_type', ['not a type', ep.pqry.COLLECTION])
+def test_project_update_bad_type(temp_project, new_type):
     resp = TEST_CLIENT.put(f'{ep.PROJ_UPDATE_W_NS}/{temp_project}',
-                           json={ep.pqry.TYPE: 'not a type'},
+                           json={ep.pqry.TYPE: new_type},
                            query_string=USER_PARAM, headers=AUTH_HDRS)
     assert resp.status_code == HTTPStatus.NOT_ACCEPTABLE
 
@@ -283,7 +286,7 @@ def test_fetch_user_not_there():
 
 
 def test_check_owner_wrong_key(temp_user):
-    with ep.app.test_request_context(headers=STRANGER_HDRS):
+    with app.test_request_context(headers=STRANGER_HDRS):
         with pytest.raises(ep.wz.Forbidden):
             ep.check_owner(ep.request, ep.fetch_user(temp_user))
 

@@ -1,9 +1,13 @@
-"""Save contributor materials in the edited volume's category folders."""
+"""Save contributor materials in the edited volume's category folders.
+
+Materials belong to an author: a person id from person_project.
+"""
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import RLock
 
-from projects import contributors, storage
+from projects import storage
+import projects.person_project as pp
 
 
 MAX_TEXT_LENGTH = 100_000
@@ -12,14 +16,20 @@ _LOCK = RLock()
 EXTENSIONS = {'.txt', '.md', '.docx', '.pdf'}
 
 
+def _check_member(project_code, member_id):
+    """Raise KeyError unless this id is an author on this project."""
+    pp.require_volume(project_code)
+    pp.fetch_author_status(project_code, member_id)
+
+
 def piece_path(project_code, contributor_id, piece_type, extension='.txt'):
     """Validate membership before constructing any path."""
-    contributors.fetch(project_code, contributor_id)
-    if piece_type not in contributors.PIECES:
+    _check_member(project_code, contributor_id)
+    if piece_type not in pp.PIECES:
         raise ValueError('Unknown piece type.')
     if extension not in EXTENSIONS:
         raise ValueError('Use .txt, .md, .docx, or .pdf files.')
-    folder = contributors.PIECES[piece_type][0]
+    folder = pp.PIECES[piece_type][0]
     return (storage.project_directory(project_code) / folder
             / f'{contributor_id}{extension}')
 
@@ -43,10 +53,9 @@ def save_file(project_code, contributor_id, piece_type, data,
         raise ValueError('Provide a nonempty file of at most 10 MB.')
     with _LOCK:
         path = piece_path(project_code, contributor_id, piece_type, extension)
-        storage.prepare_project(project_code, edited_volume=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         _write(path, data)
-        return contributors.mark_received(
-            project_code, contributor_id, piece_type)
+        return pp.mark_received(project_code, contributor_id, piece_type)
 
 
 def save_text(project_code, contributor_id, piece_type, text):

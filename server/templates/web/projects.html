@@ -7,6 +7,7 @@
   <ol class="steps">
     <li>Create a project by giving it a name and a type.</li>
     <li>Add its authors on the project's page. You can change them any time with <strong>Edit</strong>.</li>
+    <li>For an edited volume or journal issue, use <strong>Contributors</strong> to collect each contributor's bio, submission, and other materials.</li>
   </ol>
 
   {# Form for adding a new project. It sends a POST to /web/projects. #}
@@ -14,12 +15,26 @@
     <h2>Create a project</h2>
     <label for="name">Project name</label>
     <input id="name" name="name" required maxlength="200">
-    <label for="type">Project type</label>
+    <label for="type">Project type (cannot be changed later)</label>
     <select id="type" name="type">
       {% for value, label in type_choices.items() %}
         <option value="{{ value }}">{{ label }}</option>
       {% endfor %}
     </select>
+    <fieldset id="volume-components" data-type="{{ collection_type }}">
+      <legend>What must each author provide? (Edited volumes only)</legend>
+      {% include "author_components.html" %}
+      <p class="hint">Choose the folders to create now. You can change these requirements later.</p>
+    </fieldset>
+    <script>
+      const projectType = document.getElementById('type');
+      const components = document.getElementById('volume-components');
+      function showVolumeComponents() {
+        components.hidden = components.disabled = projectType.value !== components.dataset.type;
+      }
+      projectType.addEventListener('change', showVolumeComponents);
+      showVolumeComponents();
+    </script>
     <button class="primary" type="submit">Create project</button>
     <p class="hint">Next, you'll add the project's authors.</p>
   </form>
@@ -49,6 +64,12 @@
               </td>
               <td>{{ project.user }}</td>
               <td class="actions">
+                {% if project.type in multi_author_types %}
+                  <a class="button" href="{{ url_for('web.project_contributors', code=project.code) }}">Contributors</a>
+                {% endif %}
+                {% if project.type == collection_type %}
+                  <a class="button" href="{{ url_for('web.project_materials', code=project.code) }}">Materials</a>
+                {% endif %}
                 <a class="button" href="{{ edit_url }}">Edit</a>
                 {# confirm() pops up "are you sure?" before deleting. #}
                 <form method="post" action="{{ url_for('web.project_delete', code=project.code) }}"

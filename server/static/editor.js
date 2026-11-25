@@ -127,10 +127,50 @@ let busy = false;
 let creating = false;
 let projectCode = '';
 let projectsAvailable = false;
-const requirementFields = ['requires_bio', 'requires_permission', 'requires_address'];
+const requirementFields = Array.from(document.querySelectorAll('[data-requirement]'), el => el.id);
 let savedRequirements = null;
 // True once the project's saved table of contents has been loaded.
 let tocLoaded = false;
+
+let comments = [];
+
+function commentDraftDirty() {
+  return selected !== null && byId('comment-input').value.length > 0;
+}
+
+function renderComments() {
+  const list = byId('comments-list');
+  list.replaceChildren();
+  comments.forEach((comment) => {
+    const item = document.createElement('li');
+    const meta = document.createElement('p');
+    meta.className = 'comment-meta';
+    const author = document.createElement('strong');
+    author.textContent = comment.author;
+    const time = document.createElement('time');
+    time.dateTime = comment.created_at;
+    const date = new Date(comment.created_at);
+    time.textContent = Number.isNaN(date.getTime()) ? comment.created_at :
+      date.toLocaleString();
+    meta.append(author, time);
+    const body = document.createElement('p');
+    body.className = 'comment-body';
+    body.textContent = comment.text;
+    item.append(meta, body);
+    list.append(item);
+  });
+  byId('comments-count').textContent = comments.length;
+  byId('comments-empty').hidden = comments.length > 0;
+  if (!comments.length) {
+    byId('comments-empty').textContent = selected ?
+      'No comments on this piece yet.' : 'Select a contributor to view comments.';
+  }
+}
+
+function commentStatus(message, error = false) {
+  byId('comment-status').textContent = message;
+  byId('comment-status').classList.toggle('error', error);
+}
 
 function requirementValues() {
   return Object.fromEntries(requirementFields.map((field) => [field, byId(field).checked]));
@@ -154,12 +194,12 @@ async function loadRequirements() {
   if (!projectCode) return;
   requirementsStatus('Loading requirements...');
   try {
-    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/requirements`);
+    const data = await api(`/Projects/requirements/${encodeURIComponent(projectCode)}`);
     savedRequirements = data.requirements;
     requirementFields.forEach((field) => { byId(field).checked = savedRequirements[field]; });
     requirementsStatus('Requirements loaded.');
   } catch (error) {
-    requirementsStatus(`Could not load requirements: ${error.message} Select the project again to retry.`, true);
+    requirementsStatus(`Could not load requirements: ${error.message} Refresh the page to retry.`, true);
   }
 }
 
@@ -219,6 +259,7 @@ function status(message, error = false) {
 }
 
 const MAX_LENGTH = 100000;
+const MAX_COMMENT_LENGTH = 5000;
 
 // The textarea's maxlength doesn't apply to Toast UI, so check it here.
 // (The saved markdown counts, including formatting marks.)
@@ -245,11 +286,13 @@ function documentPending() {
 }
 
 function dirty() {
-  return pieceDirty() || refereeDirty() || documentPending() || requirementsDirty() || tocPending();
+  return pieceDirty() || refereeDirty() || documentPending() ||
+    requirementsDirty() || tocPending() || commentDraftDirty();
 }
 
 function allowDiscard(includeRequirements = false) {
   const unsaved = pieceDirty() || refereeDirty() || documentPending() ||
+    commentDraftDirty() ||
     (includeRequirements && (requirementsDirty() || tocPending()));
   return !unsaved || confirm('Discard unsaved changes?');
 }
@@ -274,6 +317,10 @@ function updateControls() {
   byId('toc-form').hidden = !projectCode;
   byId('toc-file').disabled = busy || creating || !tocLoaded;
   byId('toc-save').disabled = busy || creating || !tocPending();
+  byId('comment-input').disabled = busy || creating || selected === null;
+  byId('post-comment').disabled = busy || creating || selected === null ||
+    !byId('comment-input').value.trim() ||
+    byId('comment-input').value.length > MAX_COMMENT_LENGTH;
   byId('add').disabled = busy;
   tabs.forEach((tab) => {
     if ('projectOnly' in tab.dataset) tab.hidden = !projectCode;
@@ -318,12 +365,18 @@ function renderReceipt() {
 async function loadPiece(record, type) {
   busy = true;
   clearDocumentUpload();
+  byId('comment-input').value = '';
+  commentStatus('');
   updateControls();
   status('Loading...');
   try {
-    const data = await api(`/api/contributors/${record.id}/pieces/${type}`);
+    const [data, commentData] = await Promise.all([
+      api(`/api/contributors/${record.id}/pieces/${type}`),
+      api(`/api/contributors/${record.id}/pieces/${type}/comments`),
+    ]);
     selected = record;
     pieceType = type;
+    comments = commentData.comments;
     savedText = data.text;
     piece.setValue(savedText);
     baseline = piece.value();
@@ -342,6 +395,7 @@ async function loadPiece(record, type) {
     });
     renderContributors();
     renderReceipt();
+    renderComments();
     status(savedText ? 'All changes saved' : 'Not yet received');
   } catch (error) {
     status(error.message, true);
@@ -376,6 +430,34 @@ piece.onChange(() => {
   updateControls();
 });
 byId('search').addEventListener('input', renderContributors);
+byId('comment-input').addEventListener('input', () => {
+  commentStatus(commentDraftDirty() ? 'Comment draft not posted.' : '');
+  updateControls();
+});
+byId('comment-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = byId('comment-input').value;
+  if (busy || !selected || !text.trim() || text.length > MAX_COMMENT_LENGTH) return;
+  busy = true;
+  updateControls();
+  commentStatus('Posting comment...');
+  try {
+    const data = await api(
+      `/api/contributors/${selected.id}/pieces/${pieceType}/comments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+    comments.push(data.comment);
+    byId('comment-input').value = '';
+    renderComments();
+    commentStatus('Comment posted.');
+  } catch (error) {
+    commentStatus(error.message, true);
+  } finally {
+    busy = false;
+    updateControls();
+  }
+});
 byId('save').addEventListener('click', async () => {
   if (busy || !selected || !pieceDirty() || !piece.value().trim() || tooLong()) return;
   busy = true;
@@ -525,6 +607,10 @@ byId('project-select').addEventListener('change', async () => {
   clearTocFile();
   selected = null;
   contributors = [];
+  comments = [];
+  byId('comment-input').value = '';
+  renderComments();
+  commentStatus('');
   savedText = '';
   piece.setValue('');
   baseline = '';
@@ -561,8 +647,8 @@ byId('requirements-form').addEventListener('submit', async (event) => {
   updateControls();
   requirementsStatus('Saving requirements...');
   try {
-    const data = await api(`/api/editor/projects/${encodeURIComponent(projectCode)}/requirements`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const data = await api(`/Projects/requirements/${encodeURIComponent(projectCode)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requirementValues()),
     });
     savedRequirements = data.requirements;
@@ -623,21 +709,13 @@ async function initialize() {
   busy = true;
   updateControls();
   try {
-    try {
-      const data = await api('/api/editor/projects');
-      const selector = byId('project-select');
-      data.projects.forEach((project) => {
-        const option = document.createElement('option');
-        option.value = project.code;
-        option.textContent = `${project.name} (${project.code.slice(0, 8)})`;
-        selector.append(option);
-      });
-      projectsAvailable = true;
-      byId('project-status').textContent = data.projects.length ?
-        'Select a book to manage its contributors.' :
-        'No edited volumes yet. Create one through the Projects API.';
-    } catch (error) {
-      byId('project-status').textContent = `Could not load projects: ${error.message}`;
+    // On a project's Contributors page the project is already chosen,
+    // so load its requirements and contributors right away.
+    const pageProject = document.body.dataset.project;
+    if (pageProject) {
+      projectCode = pageProject;
+      byId('project-select').value = pageProject;
+      await loadRequirements();
     }
     await loadContributors();
   } catch (error) {

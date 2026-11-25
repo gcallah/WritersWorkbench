@@ -10,6 +10,9 @@ can be an author on one project and a referee on another.
 Every role someone has on a project is also in their roles in the People
 table: linking a person with a role gives them that role if they didn't
 have it.
+
+An author's row also records which of their pieces (bio, chapter...)
+have been received, and whether their paper has a referee.
 """
 from uuid import uuid4
 
@@ -24,6 +27,21 @@ ID = 'id'
 PERSON_ID = 'person_id'
 PROJECT_CODE = 'project_code'
 ROLE = 'role'
+# On author rows only: None until answered, then True or False.
+HAS_REFEREE = 'HasReferee'
+
+# The pieces an author sends in: piece type -> (folder on disk, the
+# author row's received flag). The flag names match the editor's.
+PIECES = {
+    'bio': ('bios', 'Bio'),
+    'submission': ('chapters', 'Submission'),
+    'abstract': ('abstracts', 'Abstract'),
+    'address': ('addresses', 'Address'),
+    'keywords': ('keywords', 'Keywords'),
+    'permission': ('permissions', 'Permission'),
+    'referee_report': ('referee_reports', 'RefereeReport'),
+}
+RECEIVED_FLAGS = tuple(flag for _, flag in PIECES.values())
 
 
 def needs_person_project_cache(fn):
@@ -36,6 +54,20 @@ def needs_person_project_cache(fn):
 def _check_project(project_code):
     if query.fetch_by_key(project_code) is None:
         raise ValueError(f'No project with code {project_code}')
+
+
+def require_volume(project_code):
+    """
+    Returns the project if it collects pieces from several authors (an
+    edited volume or journal issue). Raises KeyError if it doesn't exist,
+    or ValueError if it is the wrong type.
+    """
+    project = query.fetch_by_key(project_code)
+    if project is None:
+        raise KeyError('Project not found.')
+    if not query.is_multi_author(project[query.TYPE]):
+        raise ValueError('Contributors need a multi-author project.')
+    return project
 
 
 def _check_person(person_id):
@@ -79,8 +111,11 @@ def link(person_id, project_code, role):
                          + f'project {project_code}')
     people.add_role(person_id, role)
     row_id = uuid4().hex
-    get_cache(COLLECT).add({ID: row_id, PERSON_ID: person_id,
-                            PROJECT_CODE: project_code, ROLE: role})
+    row = {ID: row_id, PERSON_ID: person_id,
+           PROJECT_CODE: project_code, ROLE: role}
+    if role == people.AUTHOR:
+        row.update(_author_defaults())
+    get_cache(COLLECT).add(row)
     return row_id
 
 
@@ -149,6 +184,73 @@ def roles_in_use(person_id):
     Get the roles this person has on at least one project.
     """
     return {row[ROLE] for row in _person_rows(person_id).values()}
+
+
+def _author_defaults():
+    """
+    The piece fields of a new author row: nothing received, referee
+    question not yet answered.
+    """
+    defaults = {flag: False for flag in RECEIVED_FLAGS}
+    defaults[HAS_REFEREE] = None
+    return defaults
+
+
+def _author_row(project_code, person_id):
+    """
+    Returns (row id, row) for this person's author row on this project.
+    Raises KeyError if they are not an author on it.
+    """
+    row_id = _find_link(person_id, project_code, people.AUTHOR)
+    if row_id is None:
+        raise KeyError(f'Person {person_id} is not an author on project '
+                       + f'{project_code}')
+    return row_id, _project_rows(project_code)[row_id]
+
+
+def fetch_author_status(project_code, person_id):
+    """
+    Get which pieces this author has sent in, and whether their paper
+    has a referee: returns a dict with each received flag and HasReferee.
+    Fields missing from the database (rows made before these fields
+    existed, or a HasReferee that is still None, which SQLite drops)
+    get their defaults.
+    """
+    _, row = _author_row(project_code, person_id)
+    status = _author_defaults()
+    status.update({fld: row[fld] for fld in status
+                   if row.get(fld) is not None})
+    return status
+
+
+@needs_person_project_cache
+def _update_author(project_code, person_id, changes):
+    row_id, _ = _author_row(project_code, person_id)
+    if not get_cache(COLLECT).update(row_id, changes):
+        raise OSError(f'Could not update author {person_id} on project '
+                      + f'{project_code}')
+    return fetch_author_status(project_code, person_id)
+
+
+def mark_received(project_code, person_id, piece_type):
+    """
+    Record that this author's piece has arrived; returns their status.
+    Call only after the piece's file is saved.
+    """
+    if piece_type not in PIECES:
+        raise ValueError(f'Unknown piece type {piece_type}.')
+    return _update_author(project_code, person_id,
+                          {PIECES[piece_type][1]: True})
+
+
+def set_referee(project_code, person_id, has_referee):
+    """
+    Save whether this author's paper has a referee; returns their status.
+    """
+    if type(has_referee) is not bool:
+        raise ValueError('Referee answer must be true or false.')
+    return _update_author(project_code, person_id,
+                          {HAS_REFEREE: has_referee})
 
 
 def _find_or_add_person(name):

@@ -1,8 +1,8 @@
 """Every editor text box (issue #18) saves to its own folder and flag."""
 import pytest
-from backendcore.data.caching import get_cache
 
-from projects import contributors, materials, query, storage
+from projects import materials, people, query, storage
+import projects.person_project as pp
 
 PIECES = ['bio', 'submission', 'abstract', 'address', 'keywords',
           'permission', 'referee_report']
@@ -11,21 +11,21 @@ PIECES = ['bio', 'submission', 'abstract', 'address', 'keywords',
 @pytest.fixture
 def author():
     code = query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION})
-    record = contributors.add(code, 'Ada Writer')
-    yield code, record['id']
-    get_cache(contributors.COLLECT).delete(record['id'])
+    person = people.add('Ada Writer', [people.AUTHOR])
+    pp.link(person, code, people.AUTHOR)
+    yield code, person
+    people.delete(person)
     query.delete(code)
 
 
 def test_editor_pieces_are_all_supported():
-    assert set(PIECES) <= set(contributors.PIECES)
+    assert set(PIECES) <= set(pp.PIECES)
 
 
 def test_referee_report_has_own_folder_and_flag():
-    folder, flag = contributors.PIECES['referee_report']
+    folder, flag = pp.PIECES['referee_report']
     assert folder == 'referee_reports'
     assert flag == 'RefereeReport'
-    assert folder in storage.VOLUME_FOLDERS
 
 
 @pytest.mark.parametrize('piece', PIECES)
@@ -33,9 +33,9 @@ def test_pasted_text_round_trips_and_sets_only_its_flag(author, piece):
     code, person = author
     pasted = f'Pasted {piece} text.\nSecond line.'
     record = materials.save_text(code, person, piece, pasted)
-    flag = contributors.PIECES[piece][1]
+    flag = pp.PIECES[piece][1]
     assert record[flag] is True
-    others = [f for _, f in contributors.PIECES.values() if f != flag]
+    others = [f for _, f in pp.PIECES.values() if f != flag]
     assert all(not record[other] for other in others)
     assert materials.read_text(code, person, piece) == pasted
 

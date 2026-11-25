@@ -4,11 +4,16 @@ import os
 from base64 import b64encode
 from io import BytesIO
 from unittest.mock import patch
+from uuid import uuid4
 
 import pytest
 
-from projects import query as projects_query
-from server.projects import ContributorStore, ProjectContributorStore
+from projects import people, query as projects_query
+from server.project_handler import (
+    MAX_COMMENT_LENGTH,
+    ContributorStore,
+    ProjectContributorStore,
+)
 from server.endpoints import app
 
 
@@ -118,34 +123,81 @@ def test_replace_bio_preserves_unicode_and_other_contributors(
     assert contributor_store.get_piece(other['id'], 'bio') == ''
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
-@patch('server.projects.contributors.fetch_list', autospec=True)
-def test_project_store_lists_contributors(mock_fetch, mock_require_volume):
-    records = [{'id': 'a' * 32, 'name': 'Ada'}]
-    mock_fetch.return_value = records
+def test_comments_are_persisted_per_piece(contributor_store, contributor,
+                                          tmp_path):
+    comment = contributor_store.add_comment(
+        contributor['id'], 'bio', 'Please verify the publication date.')
 
-    result = ProjectContributorStore('b' * 32).list_contributors()
+    assert comment['author'] == 'Editor'
+    assert comment['text'] == 'Please verify the publication date.'
+    assert comment['id']
+    assert comment['created_at'].endswith('+00:00')
+    assert contributor_store.get_comments(contributor['id'], 'bio') == [
+        comment]
+    assert contributor_store.get_comments(
+        contributor['id'], 'submission') == []
+    assert ContributorStore(tmp_path).get_comments(
+        contributor['id'], 'bio') == [comment]
 
-    assert result == records
+
+@pytest.mark.parametrize('text', ['', '  ', None, 42,
+                                  'a' * (MAX_COMMENT_LENGTH + 1)])
+def test_invalid_comment_is_not_saved(contributor_store, contributor, text):
+    with pytest.raises(ValueError):
+        contributor_store.add_comment(contributor['id'], 'bio', text)
+    assert contributor_store.get_comments(contributor['id'], 'bio') == []
+
+
+def test_comment_rejects_unknown_piece(contributor_store, contributor):
+    with pytest.raises(ValueError, match='Unknown piece type'):
+        contributor_store.add_comment(contributor['id'], '../bio', 'Note')
+
+
+@patch('server.project_handler.storage.project_directory', autospec=True)
+@patch('server.project_handler.ProjectContributorStore._fetch', autospec=True)
+@patch('server.project_handler.pp.require_volume', autospec=True)
+def test_project_comments_are_scoped_to_member_and_piece(
+        mock_require_volume, mock_fetch, mock_project_directory, tmp_path):
+    mock_project_directory.return_value = tmp_path
+    store = ProjectContributorStore('b' * 32)
+    contributor_id = 'a' * 32
+
+    comment = store.add_comment(
+        contributor_id, 'referee_report', 'Revisit point 2.')
+
+    assert store.get_comments(contributor_id, 'referee_report') == [comment]
+    assert store.get_comments(contributor_id, 'bio') == []
+    assert (tmp_path / 'comments' / contributor_id /
+            'referee_report.json').is_file()
+    assert mock_fetch.call_count == 3
     mock_require_volume.assert_called_once_with('b' * 32)
-    mock_fetch.assert_called_once_with('b' * 32)
+    mock_project_directory.assert_called_with('b' * 32)
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
-@patch('server.projects.contributors.add', autospec=True)
-def test_project_store_adds_contributor(mock_add, mock_require_volume):
-    record = {'id': 'a' * 32, 'name': 'Ada'}
-    mock_add.return_value = record
+@pytest.fixture
+def volume_store():
+    """A store for a real edited volume; its authors are removed after."""
+    code = projects_query.add({**projects_query.TEST_SAMPLE,
+                               projects_query.TYPE: projects_query.COLLECTION})
+    store = ProjectContributorStore(code)
+    yield store
+    for record in store.list_contributors():
+        people.delete(record['id'])
+    projects_query.delete(code)
 
-    result = ProjectContributorStore('b' * 32).add_contributor('Ada')
 
-    assert result == record
-    mock_require_volume.assert_called_once_with('b' * 32)
-    mock_add.assert_called_once_with('b' * 32, 'Ada')
+def test_project_store_adds_and_lists_authors(volume_store):
+    name = f'Ada {uuid4().hex[:8]}'
+    record = volume_store.add_contributor(name)
+    assert record['name'] == name
+    assert record['Bio'] is False and record['HasReferee'] is None
+    assert volume_store.list_contributors() == [record]
+    with pytest.raises(ValueError):
+        volume_store.add_contributor(name)
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
-@patch('server.projects.materials.read_text', autospec=True)
+@patch('server.project_handler.pp.require_volume', autospec=True)
+@patch('server.project_handler.materials.read_text', autospec=True)
 def test_project_store_reads_piece(mock_read, mock_require_volume):
     mock_read.return_value = 'Biography text'
 
@@ -156,19 +208,14 @@ def test_project_store_reads_piece(mock_read, mock_require_volume):
     mock_read.assert_called_once_with('b' * 32, 'a' * 32, 'bio')
 
 
-@patch('server.projects.contributors.require_volume', autospec=True)
-@patch('server.projects.materials.save_text', autospec=True)
-def test_project_store_saves_piece(mock_save, mock_require_volume):
-    record = {'id': 'a' * 32, 'Bio': True}
-    mock_save.return_value = record
-
-    result = ProjectContributorStore('b' * 32).save_piece(
-        'a' * 32, 'bio', 'Biography text')
-
-    assert result == record
-    mock_require_volume.assert_called_once_with('b' * 32)
-    mock_save.assert_called_once_with(
-        'b' * 32, 'a' * 32, 'bio', 'Biography text')
+def test_project_store_saves_piece_and_referee(volume_store):
+    person = volume_store.add_contributor(f'Ada {uuid4().hex[:8]}')['id']
+    record = volume_store.save_piece(person, 'bio', 'Biography text')
+    assert record['id'] == person and record['Bio'] is True
+    assert volume_store.get_piece(person, 'bio') == 'Biography text'
+    assert volume_store.set_referee(person, False)['HasReferee'] is False
+    with pytest.raises(KeyError):
+        volume_store.save_piece('f' * 32, 'bio', 'Not an author')
 
 
 @pytest.fixture
@@ -194,6 +241,30 @@ def test_editor_api_saves_bio(editor_client, tmp_path):
     records = editor_client.get('/api/contributors').get_json()['contributors']
     assert records == [response.get_json()]
     assert (tmp_path / contributor['id'] / 'bio.txt').exists()
+
+
+def test_editor_api_reads_and_adds_piece_comments(editor_client):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    contributor_id = created.get_json()['id']
+    url = f'/api/contributors/{contributor_id}/pieces/bio/comments'
+
+    response = editor_client.post(url, json={'text': 'Check this citation.'})
+
+    assert response.status_code == 201
+    comment = response.get_json()['comment']
+    assert comment['text'] == 'Check this citation.'
+    assert editor_client.get(url).get_json() == {'comments': [comment]}
+
+
+@pytest.mark.parametrize(('piece_type', 'text'), [
+    ('unknown', 'A note'), ('bio', ''), ('bio', 'a' * 5_001),
+])
+def test_editor_api_rejects_invalid_comments(editor_client, piece_type, text):
+    created = editor_client.post('/api/contributors', json={'name': 'Ada'})
+    url = (f"/api/contributors/{created.get_json()['id']}"
+           f'/pieces/{piece_type}/comments')
+
+    assert editor_client.post(url, json={'text': text}).status_code == 400
 
 
 def test_editor_api_saves_referee_answer(editor_client):
@@ -253,7 +324,7 @@ def test_editor_upload_uses_project_material_store(editor_client):
 
 @pytest.mark.parametrize('filename', ['bio.txt', 'bio.exe', ''])
 def test_editor_rejects_unsupported_or_missing_document(editor_client,
-                                                         filename):
+                                                        filename):
     created = editor_client.post('/api/contributors', json={'name': 'Ada'})
     url = f"/api/contributors/{created.get_json()['id']}/pieces/bio/document"
     data = {'file': (BytesIO(b'data'), filename)} if filename else {}
@@ -264,7 +335,8 @@ def test_editor_rejects_unsupported_or_missing_document(editor_client,
     assert response.status_code == 400
 
 
-@pytest.mark.parametrize('url', ['/editor', '/api/contributors'])
+@pytest.mark.parametrize('url', ['/Projects/requirements/missing',
+                                 '/api/contributors'])
 def test_editor_requires_authentication(editor_client, url):
     response = editor_client.get(url, headers={'Authorization': ''})
     assert response.status_code == 401
@@ -274,7 +346,7 @@ def test_editor_requires_authentication(editor_client, url):
 
 def test_editor_disabled_without_password(editor_client, monkeypatch):
     monkeypatch.setitem(app.config, 'EDITOR_PASSWORD', None)
-    assert editor_client.get('/editor').status_code == 503
+    assert editor_client.get('/api/contributors').status_code == 503
 
 
 def test_wrong_editor_password_cannot_write(editor_client):
@@ -316,29 +388,41 @@ def test_api_storage_failure(editor_client):
 def test_endpoint_listing_still_works_with_editor_routes(editor_client):
     response = editor_client.get('/Endpoints/read')
     assert response.status_code == 200
-    assert '/editor' in response.get_json()['Available endpoints']
+    assert ('/web/projects/<code>/contributors'
+            in response.get_json()['Available endpoints'])
+
+
+def test_old_editor_page_is_gone(editor_client):
+    # Issue #22: contributors now live on each project's page.
+    assert editor_client.get('/editor').status_code == 404
 
 
 def test_editor_page_and_assets(editor_client):
-    response = editor_client.get('/editor')
+    code = projects_query.add({**projects_query.TEST_SAMPLE,
+                               projects_query.TYPE: projects_query.COLLECTION})
+    try:
+        response = editor_client.get(f'/web/projects/{code}/contributors')
+    finally:
+        projects_query.delete(code)
     assert response.status_code == 200
     assert b'Writer\'s Workbench' in response.data
     assert b'id="piece-text"' in response.data
+    assert b'id="comment-form"' in response.data
+    assert f'data-project="{code}"'.encode() in response.data
     assert editor_client.get('/static/editor.js').status_code == 200
     assert editor_client.get('/static/editor.css').status_code == 200
 
 
 @pytest.fixture
 def edited_books():
-    from projects import contributors, query
-    from backendcore.data.caching import get_cache
+    from projects import people, person_project as pp, query
 
     codes = [query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION,
                         query.NAME: name}) for name in ('Book A', 'Book B')]
     yield codes
     for code in codes:
-        for person in contributors.fetch_list(code):
-            get_cache(contributors.COLLECT).delete(person['id'])
+        for person in pp.fetch_authors(code):
+            people.delete(person[people.ID])
         query.delete(code)
 
 
@@ -350,9 +434,6 @@ def test_editor_project_selection_and_isolation(editor_client, edited_books):
     from projects.storage import project_directory
 
     first, second = edited_books
-    response = editor_client.get('/api/editor/projects')
-    assert response.status_code == 200
-    assert {first, second} <= {p['code'] for p in response.json['projects']}
     created = editor_client.post('/api/contributors',
                                  query_string={'project': first},
                                  json={'name': 'Ada'})
@@ -376,7 +457,8 @@ def test_editor_project_selection_and_isolation(editor_client, edited_books):
         'contributors': []}
     # The existing unassigned editor still uses its original files.
     assert editor_client.get('/api/contributors').json == {'contributors': []}
-    assert b'id="project-select"' in editor_client.get('/editor').data
+    page = editor_client.get(f'/web/projects/{first}/contributors')
+    assert b'id="project-select"' in page.data
 
 
 @patch('server.editor.ProjectContributorStore', autospec=True)
@@ -394,31 +476,6 @@ def test_project_query_uses_project_contributor_store(
     mock_project_store.return_value.list_contributors.assert_called_once_with()
 
 
-@patch('server.editor.ProjectContributorStore', autospec=True)
-def test_project_list_filters_and_sorts_edited_volumes(
-        mock_project_store, editor_client):
-    mock_project_store.side_effect = AssertionError(
-        'Listing volumes should not create a contributor store.')
-    projects = [
-        {projects_query.CODE: 'a', projects_query.NAME: 'zeta',
-         projects_query.TYPE: projects_query.COLLECTION},
-        {projects_query.CODE: 'b', projects_query.NAME: 'Essay',
-         projects_query.TYPE: projects_query.ESSAY},
-        {projects_query.CODE: 'c', projects_query.NAME: 'Alpha',
-         projects_query.TYPE: projects_query.COLLECTION},
-    ]
-
-    with patch('server.editor.projects_query.fetch_list',
-               autospec=True, return_value=projects) as mock_fetch:
-        response = editor_client.get('/api/editor/projects')
-
-    assert response.status_code == 200
-    assert [project[projects_query.CODE]
-            for project in response.json['projects']] == ['c', 'a']
-    mock_fetch.assert_called_once_with()
-    mock_project_store.assert_not_called()
-
-
 @patch('server.editor.ProjectContributorStore', autospec=True,
        side_effect=KeyError('Project not found.'))
 def test_unknown_project_does_not_fall_back_to_legacy(
@@ -430,6 +487,6 @@ def test_unknown_project_does_not_fall_back_to_legacy(
     assert editor_client.get('/api/contributors').json == {'contributors': []}
 
 
-def test_project_list_requires_editor_auth(editor_client):
-    assert editor_client.get('/api/editor/projects',
+def test_requirements_require_editor_auth(editor_client):
+    assert editor_client.get('/Projects/requirements/missing',
                              headers={'Authorization': ''}).status_code == 401

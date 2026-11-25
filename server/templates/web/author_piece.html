@@ -1,0 +1,12 @@
+{% extends "web/base.html" %}
+{% block title %}{{ label }} for {{ person.name }}{% endblock %}
+{% block content %}
+  <p><a href="{{ url_for('web.project_materials', code=project.code) }}">&larr; Back to {{ project.name }}</a></p>
+  <h1>{{ label }}: {{ person.name }}</h1>
+  <form class="panel wide" method="post" action="{{ url_for('web.author_piece_save', code=project.code, person_id=person.id, piece=piece) }}">
+    <label for="text">{{ label }}</label>
+    <textarea id="text" name="text" rows="14" maxlength="{{ max_text }}" required placeholder="Paste or type the {{ label|lower }} here.">{{ text }}</textarea>
+    <p class="hint">Plain text, up to {{ "{:,}".format(max_text) }} characters. Saving replaces what is saved now.</p>
+    <button class="primary" type="submit">Save</button>
+  </form>
+{% endblock %}

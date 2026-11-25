@@ -18,9 +18,10 @@ from backendcore.security.auth_key import create_auth_key_hdr
 import backendcore.security.password as pw
 import backendcore.users.query as usr
 
-import server.endpoints as ep
+import server.apis as ep
+from server.endpoints import app
 
-TEST_CLIENT = ep.app.test_client()
+TEST_CLIENT = app.test_client()
 
 # big enough we're never going to get it twice in our lives:
 BIG_INT = 1000000000

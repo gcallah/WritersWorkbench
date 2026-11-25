@@ -1,34 +1,36 @@
-"""Files and receipt flags follow the same project and contributor."""
+"""Files and receipt flags follow the same project and author."""
 from unittest.mock import patch
 
 import pytest
 from backendcore.data.caching import get_cache
 
-from projects import contributors, materials, query, storage
+from projects import materials, people, query, storage
+import projects.person_project as pp
 
 
 @pytest.fixture
 def author():
     code = query.add({**query.TEST_SAMPLE, query.TYPE: query.COLLECTION})
-    record = contributors.add(code, 'Ada Writer')
-    yield code, record['id']
-    get_cache(contributors.COLLECT).delete(record['id'])
+    person = people.add('Ada Writer', [people.AUTHOR])
+    pp.link(person, code, people.AUTHOR)
+    yield code, person
+    people.delete(person)
     query.delete(code)
 
 
-@pytest.mark.parametrize('piece', contributors.PIECES)
+@pytest.mark.parametrize('piece', pp.PIECES)
 def test_material_saved_in_category_and_only_its_flag_set(author, piece):
     code, person = author
     text = 'Renée writes.\nSecond line.'
     record = materials.save_text(code, person, piece, text)
-    folder, flag = contributors.PIECES[piece]
+    folder, flag = pp.PIECES[piece]
     assert (storage.project_directory(code) / folder
             / f'{person}.txt').read_text() == text
     assert record[flag] is True
-    flags = [value[1] for value in contributors.PIECES.values()]
+    flags = [value[1] for value in pp.PIECES.values()]
     assert all(record[other] is False for other in flags if other != flag)
-    get_cache(contributors.COLLECT).clear_cache()
-    assert contributors.fetch(code, person)[flag] is True
+    get_cache(pp.COLLECT).clear_cache()
+    assert pp.fetch_author_status(code, person)[flag] is True
     assert materials.read_text(code, person, piece) == text
 
 
@@ -48,16 +50,16 @@ def test_failed_write_does_not_mark_received(author):
     with patch.object(materials, '_write', side_effect=OSError('Disk full')):
         with pytest.raises(OSError):
             materials.save_text(code, person, 'bio', 'Biography')
-    assert not contributors.fetch(code, person)['Bio']
+    assert not pp.fetch_author_status(code, person)['Bio']
     assert materials.read_text(code, person, 'bio') == ''
 
 
 def test_database_failure_is_reported_and_save_can_be_retried(author):
     code, person = author
-    with patch.object(contributors, 'mark_received', side_effect=OSError):
+    with patch.object(pp, 'mark_received', side_effect=OSError):
         with pytest.raises(OSError):
             materials.save_text(code, person, 'bio', 'Biography')
-    assert not contributors.fetch(code, person)['Bio']
+    assert not pp.fetch_author_status(code, person)['Bio']
     assert materials.save_text(code, person, 'bio', 'Biography')['Bio']
 
 
@@ -75,7 +77,7 @@ def test_wrong_project_cannot_write(author):
     try:
         with pytest.raises(KeyError):
             materials.save_text(other, author[1], 'bio', 'Wrong book')
-        assert not list((storage.project_directory(other) / 'bios').iterdir())
+        assert not (storage.project_directory(other) / 'bios').exists()
     finally:
         query.delete(other)
 

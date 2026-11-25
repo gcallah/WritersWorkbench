@@ -16,3 +16,5 @@ SEC_MANAGER = 'SecurityManager'
 SEC_MANAGER_KEY = 'Security Manager'
 SIGNUP = 'signup'
 USER_DATA = 'UserData'
+# Longest table of contents the editor and web pages accept.
+MAX_TOC_CHARS = 100_000
