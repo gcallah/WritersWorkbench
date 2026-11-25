@@ -5,14 +5,15 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-import projects.query as projects_query
-from server.consts import MAX_TOC_CHARS
+from projects import toc
 from server.project_handler import ContributorStore, ProjectContributorStore
 from server.web import same_site_request
 
 
 editor = Blueprint('editor', __name__, template_folder='templates')
 MAX_UPLOAD_BYTES = 10_000_000
+# Endpoints that receive a multipart file instead of JSON.
+UPLOAD_ENDPOINTS = {'editor.upload_piece', 'editor.upload_toc'}
 
 
 def _store():
@@ -53,7 +54,7 @@ def editor_login_problem():
         # proxy like GitHub Codespaces.
         if not same_site_request():
             return jsonify(error='Cross-origin writes are not allowed.'), 403
-        is_document_upload = request.endpoint == 'editor.upload_piece'
+        is_document_upload = request.endpoint in UPLOAD_ENDPOINTS
         max_request_size = MAX_UPLOAD_BYTES + 100_000
         if (request.content_length and request.content_length >
                 (max_request_size if is_document_upload else 2_000_000)):
@@ -174,36 +175,17 @@ def upload_piece(contributor_id, piece_type):
 
 @editor.get('/api/editor/projects/<code>/toc')
 def read_toc(code):
-    """Read the markdown table of contents for an edited volume."""
-    project = projects_query.fetch_by_key(code)
-    if project is None:
-        raise KeyError('Project not found.')
-    if not projects_query.is_multi_author(project[projects_query.TYPE]):
-        raise ValueError(
-            'Table of contents requires an edited-volume '
-            'or journal-issue project.'
-        )
-    return jsonify(text=project.get('toc') or '')
+    """Read the table of contents markdown file of an edited volume."""
+    return jsonify(text=toc.read(code))
 
 
 @editor.post('/api/editor/projects/<code>/toc')
-def save_toc(code):
-    """Save markdown table of contents for an edited volume."""
-    project = projects_query.fetch_by_key(code)
-    if project is None:
-        raise KeyError('Project not found.')
-    if not projects_query.is_multi_author(project[projects_query.TYPE]):
-        raise ValueError(
-            'Table of contents requires an edited-volume '
-            'or journal-issue project.'
-        )
-    text = _payload().get('text')
-    if text is None:
-        raise ValueError('Send the table of contents text.')
-    if len(text) > MAX_TOC_CHARS:
-        raise ValueError(
-            'Table of contents must be at most 100,000 characters.'
-        )
-    if not projects_query.update(code, {'toc': text}):
-        raise OSError('Could not update table of contents.')
-    return jsonify(text=text)
+def upload_toc(code):
+    """Save an uploaded markdown file as the table of contents."""
+    uploaded = request.files.get('file')
+    if uploaded is None or not uploaded.filename:
+        raise ValueError('Choose a markdown (.md) file.')
+    if Path(uploaded.filename).suffix.lower() not in toc.EXTENSIONS:
+        raise ValueError('Choose a .md or .markdown file.')
+    data = uploaded.stream.read(toc.MAX_BYTES + 1)
+    return jsonify(text=toc.save_file(code, data))
